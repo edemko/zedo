@@ -1,0 +1,384 @@
+#!/bin/sh -e
+
+
+# Options are shared between different calls to zedo using environment variables.
+# Let's call these "shared vars"
+# Shared vars all begin with the 'ZEDO__' prefix.
+# Do-scripts should not modify shared vars.
+# Shared vars are initialized only when the user calls zedo, not on recursive calls.
+# Here are the shared variables that drive everything:
+#   ZEDO__SRCDIR
+#   ZEDO__SCRIPTDIR
+#   ZEDO__OUTDIR
+#   ZEDO__HASHFN
+#   ZEDO__VERBOSE
+# And there are also some derived shared vars:
+#   ZEDO__WORKDIR
+#   ZEDO__BUILDDIR
+#   ZEDO__LOGDIR
+#   ZEDO__DBDIR
+# FIXME I don't think this is a complete list anymore
+
+# When a user executes zedo, they may set command-line flags and options.
+# When a do-script executes zedo, all such flags/options are ignored.
+# Other than flags/options, zedo accepts an optional command and a list of target names.
+# The command is stored in CMD, and is 'always' if omitted.
+# Processing of each target occurs independently from all the others.
+# As each target is processed, the ZEDO_TARGET variable is set to that target name.
+# Here is the full list of variables that should be set before calling a zedo function.
+#   CMD
+#   ZEDO_PARENT: empty if zedo was called by the user (root invocation), or contains the target name of the calling do-script (recursive invocation)
+#   ZEDO_TARGET
+#   ERROR: set to 'y' if any of the targets failed, otherwise leave empty
+
+
+
+# First, I'm going to define functions that implement zedo functionality.
+# Only after al of them are defined, argument parsing begins.
+
+
+redo() {
+    if [ -e "$SCRIPTFILE" ]; then
+        mkdir -p "$(dirname "$OUTFILE")" "$(dirname "$TMPFILE")"
+        TMPFILE="$(mktemp "${OUTFILE}.tmp-XXXXXXXX")"
+        ECFILE="$(mktemp "${OUTFILE}.tmp-XXXXXXXX.ec")"
+        verbosify "TMPFILE=${TMPFILE}" 2
+        verbosify "Running do-script '${SCRIPTFILE}'..." 0
+        if [ -z "$ZEDO_PARENT" -a "$ZEDO__VERBOSE" = "-1" ]; then
+            (
+                export ZEDO_TARGET
+                "$SCRIPTFILE" "$TMPFILE" 2>&1
+                echo $? >"$ECFILE"
+            ) | tee "$LOGFILE" >/dev/null
+        else
+            (
+                export ZEDO_TARGET
+                "$SCRIPTFILE" "$TMPFILE" 2>&1
+                echo $? >"$ECFILE"
+            ) | tee "$LOGFILE" >&2
+        fi
+        EC=$(cat "$ECFILE"; rm -f "$ECFILE")
+        if [ "$EC" = "0" ]; then
+            save_xdeps "$ZEDO_PARENT" "$ZEDO_TARGET"
+            if [ -e "$TMPFILE" ]; then
+                mv "$TMPFILE" "$OUTFILE"
+                save_hash target "$OUTFILE" "$HASHFILE"
+                verbosify "Ok: $(cat "${HASHFILE}-target")" -1
+            else
+                rm -f "$OUTFILE"
+                verbosify "Ok: <phony> ${ZEDO_TARGET}" -1
+            fi
+        else
+            rm -f "$TMPFILE"
+            verbosify "FAILURE (do-script exited with code ${EC}): $ZEDO_TARGET" -1
+            return 1
+        fi
+    elif [ -e "$SRCFILE" ]; then
+        save_hash target "$SRCFILE" "$HASHFILE"
+        verbosify "Ok: $(cat "${HASHFILE}-target")" -1
+    else
+        verbosify "FAILURE (no do-script available): $ZEDO_TARGET" -1
+        return 1
+    fi
+}
+
+target_files() {
+    # FIXME the target needs to not go too far up
+    CACHEFILE=$(normpath "${ZEDO__CACHEDIR}/${1}")
+    if [ -e "${CACHEFILE}.env" ]; then
+        verbosify "Loading from cache: ${CACHEFILE}.env" 1
+        . "${CACHEFILE}.env"
+    else
+        SRCFILE=$(normpath "${ZEDO__SRCDIR}/${1}")
+        OUTFILE=$(normpath "${ZEDO__OUTDIR}/${1}")
+        DEPFILE="$(depfile_for "$1")"
+        HASHFILE="${ZEDO__DBDIR}/${1}.${ZEDO__HASHFN}"
+        LOGFILE="${ZEDO__LOGDIR}/${1}.log"
+
+        find_script "$1"
+        if [ -z "$SCRIPTFILE" ]; then
+            TARGETFILE="${SRCFILE}"
+        else
+            TARGETFILE="${OUTFILE}"
+        fi
+
+        mkdir -p "$(dirname "${CACHEFILE}.env")"
+        > "${CACHEFILE}.env"
+        echo >>"${CACHEFILE}.env" "TARGETFILE=${TARGETFILE}"
+        echo >>"${CACHEFILE}.env" "SRCFILE=${SRCFILE}"
+        echo >>"${CACHEFILE}.env" "OUTFILE=${OUTFILE}"
+        echo >>"${CACHEFILE}.env" "SCRIPTFILE=${SCRIPTFILE}"
+        echo >>"${CACHEFILE}.env" "DEPFILE=${DEPFILE}"
+        echo >>"${CACHEFILE}.env" "HASHFILE=${HASHFILE}"
+        echo >>"${CACHEFILE}.env" "LOGFILE=${LOGFILE}"
+    fi
+    verbosify "TARGETFILE=${TARGETFILE}" 2
+    verbosify "SRCFILE=${SRCFILE}" 2
+    verbosify "OUTFILE=${OUTFILE}" 2
+    verbosify "SCRIPTFILE=${SCRIPTFILE}" 2
+    verbosify "DEPFILE=${DEPFILE}" 2
+    verbosify "HASHFILE=${HASHFILE}" 2
+    verbosify "LOGFILE=${LOGFILE}" 2
+    verbosify "CACHEFILE=${CACHEFILE}" 2
+}
+depfile_for() {
+    DEP_FOR="$1"
+    if [ -z "$DEP_FOR" ]; then return 1; fi
+    F="${ZEDO__DBDIR}/${DEP_FOR}.deps"
+    echo "$F"
+}
+
+# FIXME log the script dependencies to the cache, and if I need to store them, copy that cache into the real deps file
+find_script() {
+    EXT=$(basename $SRCFILE)
+    EXT="${EXT#*.}" # FIXME strip leading dots
+
+    SCRIPTFILE="${ZEDO__SCRIPTDIR}/${1}.do"
+    LOOKDIR=$(dirname ${SCRIPTFILE})
+    TOO_FAR=$(dirname "$ZEDO__SCRIPTDIR")
+    while [ ! -e "$SCRIPTFILE" -a ! "${LOOKDIR}" = "$TOO_FAR" ]; do
+        verbosify "looked for script at '${SCRIPTFILE}'" 2
+        save_dep "$ZEDO_TARGET" create script "$SCRIPTFILE"
+        SCRIPTFILE="${LOOKDIR}/default.${EXT}.do"
+        LOOKDIR=$(dirname "$LOOKDIR")
+    done
+
+    if [ -e "$SCRIPTFILE" ]; then
+        save_dep "$ZEDO_TARGET" change script "$SCRIPTFILE"
+        save_hash script "$SCRIPTFILE" "$HASHFILE"
+        return 0
+    else
+        if [ "${LOOKDIR}" = "$TOO_FAR" ]; then
+            verbosify "looked for script at '${SCRIPTFILE}'" 2
+            save_dep "$ZEDO_TARGET" create script "$SCRIPTFILE"
+        fi
+        SCRIPTFILE=""
+        return 0
+    fi
+}
+
+save_dep() {
+    if [ -z "$1" ]; then return 0; fi
+    case "$3" in
+        target)
+            F="$(depfile_for "$1")"
+            ;;
+        script)
+            F="${CACHEFILE}.scriptdeps"
+            ;;
+        *)
+            echo >&2 "Programming error calling save_dep"
+            return 1
+            ;;
+    esac
+    mkdir -p "$(dirname "$F")"
+    echo "$2 $3 $4" >> "$F"
+    verbosify "if-$2 $3 $4 >> $F" 1
+}
+save_xdeps() {
+    if [ -n "$1" ]; then
+        FROM="$(depfile_for "$2")"
+        TO="$(depfile_for "$1")"
+        if [ -e "$FROM" ]; then
+            mkdir -p "$(dirname "$TO")"
+            cat "$FROM" >> "$TO"
+            verbosify "if-* * \$(cat $FROM) >> $TO" 1
+        fi
+    fi
+}
+save_hash() {
+    mkdir -p $(dirname "$3")
+    "$ZEDO__HASHFN" "$2" > "${3}-${1}"
+    verbosify "hash(${2}) -> ${3}-${1}" 1
+}
+
+normpath() {
+    # FIXME check that the result doesn't start with '../'
+    echo "$(readlink -m "$1" | awk -F "$(readlink -m "$PWD")/" '{ print $2 }')"
+}
+
+verbosify() {
+    if [ "$ZEDO__VERBOSE" -ge "$2" ]; then
+        if [ -n "$ZEDO_TARGET" ]; then
+            echo >&2 "[zedo ${CMD} ${ZEDO_TARGET}] $1"
+        else
+            echo >&2 "[zedo] $1"
+        fi
+    fi
+}
+
+
+ZEDO_PARENT=$ZEDO_TARGET
+ZEDO_TARGET=""
+
+# If there is no parent, this must be the root invocation.
+# Therefore, parse flags and options.
+if [ -z "$ZEDO_PARENT" ]; then
+    # where should I be running from?
+    ZEDO__HOMEDIR=$(dirname $0) # TODO really? only from where the script is?
+
+    ZEDO__WORKDIR=".zedo"
+    ZEDO__BUILDDIR="${ZEDO__WORKDIR}/build"
+    ZEDO__LOGDIR="${ZEDO__WORKDIR}/log"
+    ZEDO__DBDIR="${ZEDO__WORKDIR}/db"
+    ZEDO__CACHEDIR="${ZEDO__WORKDIR}/cache"
+
+    # option defaults
+    ZEDO__SRCDIR="src"
+    ZEDO__SCRIPTDIR="scripts"
+    ZEDO__OUTDIR="${ZEDO__BUILDDIR}"
+    ZEDO__HASHFN="sha512sum"
+    ZEDO__VERBOSE=0
+
+    OPTIONS="hvq"
+    LONGOPTS="help,verbose,quiet"
+    PARSED=$(getopt -o="$OPTIONS" -l="$LONGOPTS" -n "$0" -- "$@")
+    eval set -- "$PARSED"
+    while true; do
+        case "$1" in
+            -h|--help)
+                echo >&2 "TODO: some help text"
+                exit 0
+                ;;
+            -v|--verbose)
+                ZEDO__VERBOSE=$(($ZEDO__VERBOSE + 1))
+                shift
+                ;;
+            -q|--quiet)
+                ZEDO__VERBOSE=-1
+                shift
+                ;;
+            --)
+                shift
+                break
+                ;;
+            *)
+                echo >&2 "Programming error - recognized but supported option: $1"
+                exit 2
+                ;;
+        esac
+    done
+# Otherwise, this is a recursive invocation.
+# Do not parse any options, just inherit the ZEDO__* environment variables.
+else
+    PARSED=$(getopt -o="" -l="" -n "$0" -- "$@")
+    eval set -- "$PARSED"
+    while true; do
+        case "$1" in
+            --)
+                shift
+                break
+                ;;
+            *)
+                echo >&2 "Usage (recursive): $0 <command>? <target>..."
+                exit 1
+                ;;
+        esac
+    done
+fi
+
+if [ -z "$ZEDO_PARENT" ]; then
+    cd "$ZEDO__HOMEDIR"
+    if [ -d "$ZEDO__CACHEDIR" ]; then rm -r "$ZEDO__CACHEDIR"; fi
+    export ZEDO__HOMEDIR
+    export ZEDO__WORKDIR
+    export ZEDO__BUILDDIR
+    export ZEDO__LOGDIR
+    export ZEDO__DBDIR
+    export ZEDO__CACHEDIR
+    export ZEDO__SRCDIR
+    export ZEDO__SCRIPTDIR
+    export ZEDO__OUTDIR
+    export ZEDO__HASHFN
+    export ZEDO__VERBOSE
+fi
+
+# what command am I running?
+case $1 in
+    always)
+        CMD=always
+        shift
+        ;;
+    find)
+        CMD=find
+        shift
+        ;;
+    *)
+        CMD=always
+        ;;
+esac
+
+if [ -z "$ZEDO_PARENT" ]; then
+    verbosify "PWD=${PWD}" 1
+    verbosify "CMD=$CMD" 1
+    verbosify "ZEDO__WORKDIR=${ZEDO__WORKDIR}" 2
+    verbosify "ZEDO__BUILDDIR=${ZEDO__BUILDDIR}" 2
+    verbosify "ZEDO__LOGDIR=${ZEDO__LOGDIR}" 2
+    verbosify "ZEDO__DBDIR=${ZEDO__DBDIR}" 2
+    verbosify "ZEDO__CACHEDIR=${ZEDO__CACHEDIR}" 2
+    verbosify "ZEDO__SRCDIR=${ZEDO__SRCDIR}" 2
+    verbosify "ZEDO__SCRIPTDIR=${ZEDO__SCRIPTDIR}" 2
+    verbosify "ZEDO__OUTDIR=${ZEDO__OUTDIR}" 2
+    verbosify "ZEDO__HASHFN=${ZEDO__HASHFN}" 2
+    verbosify "ZEDO__VERBOSE=${ZEDO__VERBOSE}" 2
+else
+    verbosify "PWD=${PWD}" 3
+    verbosify "CMD=$CMD" 3
+    verbosify "ZEDO__WORKDIR=${ZEDO__WORKDIR}" 3
+    verbosify "ZEDO__BUILDDIR=${ZEDO__BUILDDIR}" 3
+    verbosify "ZEDO__LOGDIR=${ZEDO__LOGDIR}" 3
+    verbosify "ZEDO__DBDIR=${ZEDO__DBDIR}" 3
+    verbosify "ZEDO__CACHEDIR=${ZEDO__CACHEDIR}" 3
+    verbosify "ZEDO__SRCDIR=${ZEDO__SRCDIR}" 3
+    verbosify "ZEDO__SCRIPTDIR=${ZEDO__SCRIPTDIR}" 3
+    verbosify "ZEDO__OUTDIR=${ZEDO__OUTDIR}" 3
+    verbosify "ZEDO__HASHFN=${ZEDO__HASHFN}" 3
+    verbosify "ZEDO__VERBOSE=${ZEDO__VERBOSE}" 3
+fi
+
+
+
+
+ERROR=""
+case $CMD in
+    always)
+        while [ ! "$#" = "0" ]; do
+            ZEDO_TARGET="$1"
+            target_files "$ZEDO_TARGET"
+            shift;
+
+            mkdir -p "$(dirname "$DEPFILE")" "$(dirname "$LOGFILE")"
+            > "$LOGFILE"
+            touch "${CACHEFILE}.scriptdeps"
+            mv "${CACHEFILE}.scriptdeps" "$DEPFILE"
+            verbosify "if-* * \$(cat ${CACHEFILE}.scriptdeps) >> $DEPFILE" 1
+            save_dep "$ZEDO_PARENT" change target "$ZEDO_TARGET"
+            if redo; then
+                echo >"${CACHEFILE}.status" "ok"
+            else
+                echo >"${CACHEFILE}.status" "fail"
+                ERROR="y"
+            fi
+        done
+        if [ -n "$ERROR" ]; then
+            exit 1
+        fi
+        ;;
+    find)
+        ZEDO_TARGET="$1"
+        target_files "$ZEDO_TARGET"
+        echo "$TARGETFILE"
+        ;;
+    # TODO if-change
+    # TODO if-create
+    # TODO extra-out
+    # TODO init
+    # TODO clean (in various amounts)
+    # FIXME complain about unknown commands
+esac
+
+if [ -z "$ERROR" ]; then
+    exit 0
+else
+    exit 1
+fi
