@@ -48,11 +48,11 @@ findTopDirs TopOptions{..} = case zedoDir of
     findDirs zedoDir = do
         zedoDir <- makeAbsolute zedoDir
         -- FIXME these are just defaults, they should be configurable
-        let srcDir  = zedoDir </> "src"
-            doDir   = zedoDir </> "do"
+        let srcDir  = "src"
+            doDir   = "do"
             outDir  = workDir </> "build"
-            distDir = zedoDir </> "dist"
-            workDir = zedoDir </> ".zedo"
+            distDir = "dist"
+            workDir = ".zedo"
         pure TopDirs{..}
 
 

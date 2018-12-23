@@ -26,7 +26,9 @@ queen :: IO ()
 queen = do
     (opts, cmd) <- execParser options
     topDirs <- topDirsOrDie opts
-    dispatch topDirs cmd
+    withCurrentDirectory (Zedo.Find.zedoDir topDirs) $ do
+        print =<< getCurrentDirectory
+        dispatch topDirs cmd
     where
     options :: ParserInfo (TopOptions, Command)
     options = info (helper <*> parser)
@@ -42,7 +44,8 @@ worker parent = do
     let opts = TopOptions{ parent = Just parent, .. }
     topDirs <- topDirsOrDie opts
     cmd <- execParser options
-    dispatch topDirs cmd
+    withCurrentDirectory (Zedo.Find.zedoDir topDirs) $
+        dispatch topDirs cmd
     where
     options :: ParserInfo Command
     options = info (helper <*> subCommands)

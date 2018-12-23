@@ -23,7 +23,8 @@ This is a detailed list because it's also serving as documentation about the alg
 
 - [ ] startup
     - [x] check $ZEDO_TARGET exists: if so, this is a subprocess, not the root one
-    - [ ] move to zedo base dir
+    - [x] move to zedo base dir
+    - [ ] zedo command is always on the path
     - [ ] as root process
         - [x] register self in the db as running
         - [x] if another process got there first, exit
@@ -103,5 +104,5 @@ This is a detailed list because it's also serving as documentation about the alg
 - [ ] auditing
     - [ ] only use System.Exit routines in the main module
     - [ ] ensure all errors are handled by using only checked exceptions
-    - [ ] all file paths relative to zedo base dir
+    - [x] all file paths relative to zedo base dir
     - META
