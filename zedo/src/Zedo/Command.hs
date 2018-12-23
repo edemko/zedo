@@ -42,13 +42,14 @@ cmdInit TopDirs{..} = do -- FIXME move this elsewhere
                     \( pid INTEGER NOT NULL\
                     \, jobs_now INTEGER NOT NULL\
                     \, jobs_max INTEGER NOT NULL\
+                    \, CONSTRAINT notTooManyJobs CHECK (jobs_now <= jobs_max)\
                     \);"
         query_ db "SELECT pid FROM current_build LIMIT 1;" >>= \case
             [Only (otherPid :: Int)] -> die $ concat ["another zedo process is already running (pid: ", show otherPid, ")"]
             [] -> pure ()
         myPid <- getProcessID
         executeNamed db "INSERT INTO current_build (pid, jobs_now, jobs_max) \
-                        \VALUES (:myPid, 0, 0);" 
+                        \VALUES (:myPid, 1, 1);"
             [ ":myPid" := (fromIntegral myPid :: Int) ]
         pure dbFile
     releaseDb dbFile = withConnection dbFile $ \db -> do
