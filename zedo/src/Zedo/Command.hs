@@ -2,6 +2,7 @@ module Zedo.Command where
 
 import Zedo.Options
 import Zedo.Find
+import Zedo.Build
 
 import System.FilePath
 import System.Directory
@@ -11,7 +12,16 @@ import System.Posix.Process
 import Database.SQLite.Simple
 import Control.Exception
 import System.Process.Typed
+import System.Exit
 
+
+dispatch :: TopDirs -> Command -> IO ()
+dispatch topDirs cmd = do
+    case cmd of
+        Init -> cmdInit topDirs
+        Find target -> cmdFind topDirs target
+        Always targets -> cmdAlways topDirs `mapM_` targets
+        IfChange targets -> cmdAlways topDirs `mapM_` targets -- TODO
 
 cmdInit :: TopDirs -> IO ()
 cmdInit TopDirs{..} = do -- FIXME move this elsewhere
@@ -54,25 +64,10 @@ cmdFind topDirs targetOpts = do
 
 
 -- FIXME should return success or failure instead of dieing
-cmdAlways :: TopDirs -> TargetOptions -> IO ()
+cmdAlways :: TopDirs -> TargetOptions -> IO Bool
 cmdAlways topDirs targetOpts = do
-    TargetFiles{..} <- findTargetFiles topDirs targetOpts >>= \case
+    targetFiles <- findTargetFiles topDirs targetOpts >>= \case
         Nothing -> exitFailure
         Just it -> pure it
-    case doFile of
-        Nothing -> pure ()
-        Just doFile -> do
-            let tmpFile = outFile
-            createDirectoryIfMissing True (takeDirectory outFile)
-            createDirectoryIfMissing True (takeDirectory tmpFile)
-            let extraEnv =
-                    [ ("ZEDO_TARGET", target)
-                    , ("ZEDO__BASEDIR", Zedo.Find.zedoDir topDirs)
-                    ]
-            targetEnv <- (extraEnv ++) <$> getEnvironment
-            let build = setStdin closed
-                        $ setEnv targetEnv
-                        -- TODO set parent
-                        $ proc doFile [tmpFile]
-            exitCode <- runProcess build
-            if exitCode == ExitSuccess then pure () else exitFailure
+    exitCode <- build topDirs targetFiles
+    pure $ exitCode == ExitSuccess

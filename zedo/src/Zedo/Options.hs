@@ -32,6 +32,7 @@ data Command
     = Init
     | Find TargetOptions
     | Always [TargetOptions]
+    | IfChange [TargetOptions]
     -- TODO
     deriving (Read, Show)
 
@@ -47,24 +48,18 @@ topOptions = do
 (topCommands, subCommands) =
     let basic =
             (  command "find" (info findOptions (progDesc "Report information about a zedo target or source file."))
-            <> command "always" (info alwaysOptions (progDesc "Rebuild a target, regardless of the state of its dependencies.")) -- FIXME
+            <> command "always" (info (Always <$> targetsOptions) (progDesc "Rebuild a target, regardless of the state of its dependencies."))
+            <> command "ifchange" (info (IfChange <$> targetsOptions) (progDesc "Rebuild a target, but only if its dependencies are out-of-date."))
             )
         init = command "init" (info initOptions (progDesc "Create a zedo project."))
-        def = alwaysOptions
+        def = (Always <$> targetsOptions)
     in (hsubparser (init <> basic) <|> def, hsubparser basic <|> def)
--- topCommands = hsubparser
---     ( command "init" (info initOptions (progDesc "Create a zedo project."))
---     <> command "find" (info findOptions (progDesc "Report information about a zedo target or source file."))
---     <> command "always" (info alwaysOptions (progDesc "Rebuild a target, regardless of the state of its dependencies.")) -- FIXME
---     ) <|> alwaysOptions
 
 
 initOptions = pure Init
 findOptions = do
     targetSpecifier <- argument str (metavar "TARGET")
     pure $ Find TargetOptions{..}
-alwaysOptions = do
-    targets <- some $ do
-        targetSpecifier <- argument str (metavar "TARGET")
-        pure TargetOptions{..}
-    pure $ Always targets
+targetsOptions = some $ do
+    targetSpecifier <- argument str (metavar "TARGET")
+    pure TargetOptions{..}

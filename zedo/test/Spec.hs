@@ -133,6 +133,8 @@ test_always tmp = do
     topDirs <- findTopDirs topOpts
     topDirs <- maybe (error "bad options") pure topDirs
     cmdInit topDirs
+    cmdAlways topDirs TargetOptions{ targetSpecifier = "one.txt" }
+    whenM (doesPathExist $ tmp </> ".zedo" </> "build" </> "one.txt") $ error (concat ["file written despite targeting a source file: ", "one.txt"])
     let build name expected = do
             let targetOpts = TargetOptions { targetSpecifier = name }
             cmdAlways topDirs targetOpts

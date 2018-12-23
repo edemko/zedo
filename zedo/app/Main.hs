@@ -26,10 +26,7 @@ queen :: IO ()
 queen = do
     (opts, cmd) <- execParser options
     topDirs <- topDirsOrDie opts
-    case cmd of
-        Init -> cmdInit topDirs
-        Find target -> cmdFind topDirs target
-        Always targets -> cmdAlways topDirs `mapM_` targets
+    dispatch topDirs cmd
     where
     options :: ParserInfo (TopOptions, Command)
     options = info (helper <*> parser)
@@ -45,9 +42,7 @@ worker parent = do
     let opts = TopOptions{ parent = Just parent, .. }
     topDirs <- topDirsOrDie opts
     cmd <- execParser options
-    case cmd of
-        Find target -> cmdFind topDirs target
-        Always targets -> cmdAlways topDirs `mapM_` targets
+    dispatch topDirs cmd
     where
     options :: ParserInfo Command
     options = info (helper <*> subCommands)

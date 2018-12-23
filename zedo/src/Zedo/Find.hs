@@ -7,6 +7,7 @@ import System.Directory
 import System.FilePath
 import System.Environment
 import Control.Exception
+import System.Exit
 
 
 findZedoDir :: IO (Maybe FilePath)
@@ -66,17 +67,18 @@ data TargetFiles = TargetFiles
     deriving (Read, Show)
 
 findTargetFiles :: TopDirs -> TargetOptions -> IO (Maybe TargetFiles)
-findTargetFiles topDirs@TopDirs{..} TargetOptions{..} = do
-    -- print topDirs
-    foo <- maybe (pure Nothing) ioPart purePart
-    -- print foo
-    pure foo
+findTargetFiles topDirs@TopDirs{..} TargetOptions{..} = maybe (pure Nothing) ioPart purePart
     where
     ioPart (target, srcFile, allDoFiles, outFile, distFile) = do
         (otherDoFiles, doFile) <- findScript allDoFiles
         let isSource = doFile == Nothing
             targetFile = if isSource then srcFile else outFile
-        pure $ Just TargetFiles{..}
+        srcOrScriptExists <- case doFile of
+            Just _ -> pure True
+            Nothing -> doesFileExist srcFile
+        if srcOrScriptExists
+            then pure $ Just TargetFiles{..}
+            else die $ "neither source nor script file found for target: " ++ targetSpecifier
     purePart = do
         target <- fixupDoubleDot $ case (parent, targetSpecifier) of
             (_, ('/':absSpecifier)) -> absSpecifier
