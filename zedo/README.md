@@ -23,6 +23,7 @@ This is a detailed list because it's also serving as documentation about the alg
 
 - [ ] startup
     - [x] check $ZEDO_TARGET exists: if so, this is a subprocess, not the root one
+    - [ ] move to zedo base dir
     - [ ] as root process
         - [x] register self in the db as running
         - [x] if another process got there first, exit
@@ -79,15 +80,16 @@ This is a detailed list because it's also serving as documentation about the alg
         - [ ] delete hash from db
     - [ ] register as dependency of parent in db
     - [ ] create locations
-        - [ ] create parent directory for the temp file
+        - [x] create parent directory for the temp file
+        - [x] create parent directory for out file
         - [ ] create/truncate old log files
     - [ ] building
         - [x] set ZEDO_TARGET and ZEDO__BASEDIR
         - [x] create process that executes the build script
         - [x] `$1` is the (tmp) target file
-        - [ ] `$2` is the target name without extension
-        - [ ] using a temp file for atomicity
-        - [ ] stdin is closed
+        - [x] `$2` is the target name without extension
+        - [x] using a temp file for atomicity
+        - [x] stdin is closed
         - [ ] stdout and stderr go to the respective log files
     - [ ] cleanup
         - [ ] move target files
@@ -100,4 +102,6 @@ This is a detailed list because it's also serving as documentation about the alg
     - META
 - [ ] auditing
     - [ ] only use System.Exit routines in the main module
+    - [ ] ensure all errors are handled by using only checked exceptions
+    - [ ] all file paths relative to zedo base dir
     - META

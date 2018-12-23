@@ -1,13 +1,16 @@
 module Zedo.Find where
 
-import Debug.Trace
 import Zedo.Options
 
+import Data.Maybe
 import System.Directory
 import System.FilePath
 import System.Environment
 import Control.Exception
 import System.Exit
+import Control.Arrow
+
+type Extension = String
 
 
 findZedoDir :: IO (Maybe FilePath)
@@ -58,9 +61,9 @@ data TargetFiles = TargetFiles
     , targetFile :: FilePath
     , srcFile :: FilePath
     , isSource :: Bool
-    , allDoFiles :: [FilePath]
-    , doFile :: Maybe FilePath
-    , otherDoFiles :: [FilePath]
+    , allDoFiles :: [(FilePath, Maybe Extension)]
+    , doFile :: Maybe (FilePath, Maybe Extension)
+    , otherDoFiles :: [(FilePath, Maybe Extension)]
     , outFile :: FilePath
     , distFile :: FilePath
     }
@@ -71,7 +74,7 @@ findTargetFiles topDirs@TopDirs{..} TargetOptions{..} = maybe (pure Nothing) ioP
     where
     ioPart (target, srcFile, allDoFiles, outFile, distFile) = do
         (otherDoFiles, doFile) <- findScript allDoFiles
-        let isSource = doFile == Nothing
+        let isSource = isNothing doFile
             targetFile = if isSource then srcFile else outFile
         srcOrScriptExists <- case doFile of
             Just _ -> pure True
@@ -91,26 +94,28 @@ findTargetFiles topDirs@TopDirs{..} TargetOptions{..} = maybe (pure Nothing) ioP
         pure (target, srcFile, allDoFiles, outFile, distFile)
 
 
-findScript :: [FilePath] -> IO ([FilePath], Maybe FilePath)
+findScript :: [(FilePath, Maybe Extension)] -> IO ([(FilePath, Maybe Extension)], Maybe (FilePath, Maybe Extension))
 findScript = loop []
     where
     loop acc [] = pure (reverse acc, Nothing)
-    loop acc (path:paths) = doesFileExist path >>= \case
-        True -> pure (reverse acc, Just path)
-        False -> loop (path:acc) paths
+    loop acc ((path, ext):paths) = doesFileExist path >>= \case
+        True -> pure (reverse acc, Just (path, ext))
+        False -> loop ((path, ext):acc) paths
 
-possibleScripts :: FilePath -> FilePath -> [FilePath]
+possibleScripts :: FilePath -> FilePath -> [(FilePath, Maybe Extension)]
 possibleScripts scriptRoot targetRelPath_unsafe = case fixupDoubleDot targetRelPath_unsafe of
     Nothing -> []
-    Just targetRelPath -> (normalise . (scriptRoot </>)) <$> relScripts
+    Just targetRelPath -> first (normalise . (scriptRoot </>)) <$> relScripts
         where
-        relScripts = (targetRelPath <.> "do") : defaultScripts targetRelPath
+        relScripts = (targetRelPath <.> "do", Nothing)
+                    : (second Just <$> defaultScripts targetRelPath)
 
-defaultScripts :: FilePath -> [FilePath]
+
+defaultScripts :: FilePath -> [(FilePath, Extension)]
 defaultScripts targetRelPath = do
     scriptDir <- scriptDirs (takeDirectory targetRelPath)
     extention <- extensions (takeFileName targetRelPath)
-    pure $ scriptDir </> "default" <.> extention <.> "do"
+    pure $ (scriptDir </> "default" <.> extention <.> "do", '.':extention)
 
 scriptDirs :: FilePath -> [FilePath]
 scriptDirs "/" = ["/"]

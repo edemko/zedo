@@ -9,6 +9,7 @@ import System.Path
 import System.Exit
 import System.IO.Temp
 
+import Control.Arrow
 import Control.Monad
 
 
@@ -59,9 +60,9 @@ test_find tmp = do
                 , targetFile = outFile expect
                 , srcFile = "src/one.greet"
                 , isSource = False
-                , allDoFiles = [ "do/one.greet.do", "do/default.greet.do" ]
-                , doFile = Just "do/default.greet.do"
-                , otherDoFiles = [ "do/one.greet.do" ]
+                , allDoFiles = [ ("do/one.greet.do", Nothing), ("do/default.greet.do", Just ".greet") ]
+                , doFile = Just ("do/default.greet.do", Just ".greet")
+                , otherDoFiles = [ ("do/one.greet.do", Nothing) ]
                 , outFile = ".zedo/build/one.greet"
                 , distFile = "dist/one.greet"
                 }
@@ -82,9 +83,9 @@ test_find tmp = do
                 , targetFile = outFile expect
                 , isSource = False
                 , srcFile = "src/alice.greet"
-                , allDoFiles = [ "do/alice.greet.do", "do/default.greet.do" ]
-                , doFile = Just "do/default.greet.do"
-                , otherDoFiles = [ "do/alice.greet.do" ]
+                , allDoFiles = [ ("do/alice.greet.do", Nothing), ("do/default.greet.do", Just ".greet") ]
+                , doFile = Just ("do/default.greet.do", Just ".greet")
+                , otherDoFiles = [ ("do/alice.greet.do", Nothing) ]
                 , outFile = ".zedo/build/alice.greet"
                 , distFile = "dist/alice.greet"
                 }
@@ -105,9 +106,9 @@ test_find tmp = do
                 , targetFile = outFile expect
                 , isSource = False
                 , srcFile = "src/alice.greet"
-                , allDoFiles = [ "do/alice.greet.do", "do/default.greet.do" ]
-                , doFile = Just "do/default.greet.do"
-                , otherDoFiles = [ "do/alice.greet.do" ]
+                , allDoFiles = [ ("do/alice.greet.do", Nothing), ("do/default.greet.do", Just ".greet") ]
+                , doFile = Just ("do/default.greet.do", Just ".greet")
+                , otherDoFiles = [ ("do/alice.greet.do", Nothing) ]
                 , outFile = ".zedo/build/alice.greet"
                 , distFile = "dist/alice.greet"
                 }
@@ -121,9 +122,9 @@ test_find tmp = do
         [ targetFile expected == targetFile targetFiles `makeRelativeTo` tmp
         , srcFile expected == srcFile targetFiles `makeRelativeTo` tmp
         , isSource expected == isSource targetFiles
-        , allDoFiles expected == (makeRelative tmp <$> allDoFiles targetFiles)
-        , doFile expected == (makeRelative tmp <$> doFile targetFiles)
-        , otherDoFiles expected == (makeRelative tmp <$> otherDoFiles targetFiles)
+        , allDoFiles expected == (first (makeRelative tmp) <$> allDoFiles targetFiles)
+        , doFile expected == (first (makeRelative tmp) <$> doFile targetFiles)
+        , otherDoFiles expected == (first (makeRelative tmp) <$> otherDoFiles targetFiles)
         , outFile expected == outFile targetFiles `makeRelativeTo` tmp
         , distFile expected == distFile targetFiles `makeRelativeTo` tmp
         ]
@@ -137,8 +138,10 @@ test_always tmp = do
     whenM (doesPathExist $ tmp </> ".zedo" </> "build" </> "one.txt") $ error (concat ["file written despite targeting a source file: ", "one.txt"])
     let build name expected = do
             let targetOpts = TargetOptions { targetSpecifier = name }
+                outFile = tmp </> ".zedo" </> "build" </> name
             cmdAlways topDirs targetOpts
-            contents <- readFile (tmp </> ".zedo" </> "build" </> name)
+            unlessM (doesFileExist outFile) $ error (concat ["no output file produced: ", outFile])
+            contents <- readFile outFile
             unless (contents == expected) $ error (unlines [ "Unexpected file contents. Actual contents as follows:", contents ])
     build "one.greet" "Hello, World!\n"
 
