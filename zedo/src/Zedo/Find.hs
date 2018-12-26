@@ -2,6 +2,7 @@ module Zedo.Find where
 
 import Zedo.Options
 
+import Data.List
 import Data.Maybe
 import System.Directory
 import System.FilePath
@@ -81,12 +82,13 @@ findTargetFiles topDirs@TopDirs{..} TargetOptions{..} = maybe (pure Nothing) ioP
             Nothing -> doesFileExist srcFile
         if srcOrScriptExists
             then pure $ Just TargetFiles{..}
-            else die $ "neither source nor script file found for target: " ++ targetSpecifier
+            else die $ "no source found for: " ++ srcFile
     purePart = do
         target <- fixupDoubleDot $ case (parent, targetSpecifier) of
+            (Just parent, relSpecifier) | "./" `isPrefixOf` relSpecifier
+                                        || "../" `isPrefixOf` relSpecifier -> parent </> relSpecifier
             (_, ('/':absSpecifier)) -> absSpecifier
-            (Just parent, _) -> takeDirectory parent </> targetSpecifier
-            (Nothing, _) -> targetSpecifier
+            (_, absSpecifier) -> absSpecifier
         let srcFile     = srcDir       </>        target
             allDoFiles  = doDir `possibleScripts` target
             outFile     = outDir       </>        target

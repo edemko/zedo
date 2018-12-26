@@ -8,7 +8,7 @@ If it isn't very complex, then a few build scripts should take care of it.
 If it does get complex though, you'll want the comfort of a full scripting language to do with as you see fit.
 Zedo gains its power by not taking anything in your project for granted; it merely coordinates your build scripts.
 
-*It doesn't need to be software, it could be anything stored digitally --- a blog, music, the results of scientific analysis, &c. That said, you'll be a little more comfortable writing build scripts if you're already a programmer.
+\*It doesn't need to be software, it could be anything stored digitally --- a blog, music, the results of scientific analysis, &c. That said, you'll be a little more comfortable writing build scripts if you're already a programmer.
 
 If you are familiar with `redo`, `zedo` is based on that, but does not attempt to be backwards-compatible with DJB's original discussions.
 Now that `redo` has been experimented with in practice, a few limitations of the system have been identified.
@@ -42,8 +42,8 @@ This is a detailed list because it's also serving as documentation about the alg
         - [x] check for other pid and abort
     - [ ] re-initialize
 - [ ] zedo find
-    - [x] target is relative to parent target
-    - [x] absolute paths to target start with a slash
+    - [x] if target starts with `./` or `../`, then target is relative to parent target
+    - [x] absolute paths to target may start with a slash
     - [x] enumerate all postentially-relevant files (absolute paths)
     - [x] by default print target file
     - [x] fail if neither script nor source exists
