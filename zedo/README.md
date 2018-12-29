@@ -33,10 +33,13 @@ This is a detailed list because it's also serving as documentation about the alg
     - [x] as sub-process
         - [x] find the base dir from $ZEDO__BASEDIR
 - [ ] zedo init
-    - [ ] if no explicit dir given, use cwd
+    - [x] if no explicit dir given, use cwd
     - [x] create version descriptor file
     - [ ] create the database
         - [x] current_build table
+        - [x] target table
+        - [ ] dependencies table
+        - [ ] extra files table
         - META: other tables
     - [x] do not (re-)initialize if another process is already using it
         - [x] register pid as soon as db created
@@ -62,6 +65,7 @@ This is a detailed list because it's also serving as documentation about the alg
         - [ ] check if more that one job slot is available
         - [ ] call the build procedure for each
         - [ ] join all the sub-processes
+    - [ ] flag to also print the target file
 - META: other zedo commands
 - [ ] zedo {phony,volative,also}
     - [x] phony set parent's phony flag in db
@@ -78,11 +82,12 @@ This is a detailed list because it's also serving as documentation about the alg
         - [ ] set state in db to "ok" or "fail" on success/fail
         - [ ] register hash in db if successful
 - [ ] procedure: `build` on output file
+    - [ ] if another process is building, wait for it to complete
     - [ ] clear the db
         - [ ] set state to "building"
-        - [ ] clear hash
+        - [x] clear hash
         - [ ] clear dependencies
-        - [ ] clear phony and volatile flags
+        - [x] clear phony and volatile flags
         - [ ] clear extra actions
     - [ ] register as dependency of parent in db
     - [ ] create locations
