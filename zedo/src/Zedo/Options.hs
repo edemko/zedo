@@ -31,8 +31,8 @@ data TargetOptions = TargetOptions
 data Command
     = Init
     | Find TargetOptions
-    | Always [TargetOptions]
-    | IfChange [TargetOptions]
+    | Always { targets :: [TargetOptions], find :: Bool }
+    | IfChange { targets :: [TargetOptions], find :: Bool }
     | Phony
     -- TODO
     deriving (Read, Show)
@@ -49,7 +49,7 @@ topOptions = do
 (topCommands, subCommands) =
     let basic =
             (  command "find"     (info findOptions
-                    (progDesc "Report information about a zedo target or source file."))
+                    (progDesc "Report information about a zedo target."))
             <> command "always"   (info alwaysOptions
                     (progDesc "Rebuild a target, regardless of the state of its dependencies."))
             <> command "ifchange" (info ifchangeOptions
@@ -62,7 +62,7 @@ topOptions = do
                     (progDesc "Do not produce an output file for the calling target."))
             -- TODO volatile
             )
-        def = (Always <$> targetsOptions)
+        def = defaultOptions
     in (hsubparser (init <> basic) <|> def, hsubparser (basic <> sub) <|> def)
 
 
@@ -70,9 +70,23 @@ initOptions = pure Init
 findOptions = do
     targetSpecifier <- argument str (metavar "TARGET")
     pure $ Find TargetOptions{..}
-alwaysOptions = Always <$> targetsOptions
-ifchangeOptions = IfChange <$> targetsOptions
+alwaysOptions = do
+    find <- switch (  long "find"
+                   <> short 'f'
+                   <> help "Also print the target filename.")
+    targets <- targetsOptions
+    pure Always{..}
+ifchangeOptions = do
+    find <- switch (  long "find"
+                   <> short 'f'
+                   <> help "Also print the target filename.")
+    targets <- targetsOptions
+    pure IfChange{..}
 phonyOptions = pure Phony
+defaultOptions = do
+    find <- pure False
+    targets <- targetsOptions
+    pure Always{..}
 
 targetsOptions = some $ do
     targetSpecifier <- argument str (metavar "TARGET")

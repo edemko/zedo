@@ -11,6 +11,7 @@ import System.Environment hiding (setEnv)
 import Database.SQLite.Simple
 import System.Process.Typed
 import System.Exit
+import Control.Monad
 
 
 dispatch :: TopDirs -> Command -> IO ()
@@ -18,13 +19,15 @@ dispatch topDirs cmd = do
     case cmd of
         Init -> cmdInit topDirs
         Find target -> cmdFind topDirs target
-        Always targets -> do
-            successes <- cmdAlways topDirs `mapM` targets
-            if and successes then pure () else die "a dependency failed to build"
-        IfChange targets -> do -- TODO
-            successes <- cmdAlways topDirs `mapM` targets
-            if and successes then pure () else die "a dependency failed to build"
+        Always{..} -> buildMany find targets
+        IfChange{..} -> buildMany find targets -- TODO
         Phony -> cmdPhony topDirs
+    where
+    buildMany find targets = do
+        successes <- cmdAlways topDirs `mapM` targets
+        if and successes
+        then when find (cmdFind topDirs `mapM_` targets)
+        else die "a dependency failed to build"
 
 cmdInit :: TopDirs -> IO ()
 cmdInit topDirs@TopDirs{..} = do -- FIXME move this elsewhere

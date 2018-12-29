@@ -65,7 +65,7 @@ This is a detailed list because it's also serving as documentation about the alg
         - [ ] check if more that one job slot is available
         - [ ] call the build procedure for each
         - [ ] join all the sub-processes
-    - [ ] flag to also print the target file
+    - [x] flag to also print the target file, each target is on a new line
 - META: other zedo commands
 - [ ] zedo {phony,volative,also}
     - [x] phony set parent's phony flag in db
