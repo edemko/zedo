@@ -30,7 +30,7 @@ queen = do
             topDirsOrDie opts{ Zedo.Options.zedoDir = maybe (Just ".") Just (Zedo.Options.zedoDir opts) }
         _ -> topDirsOrDie opts
     withCurrentDirectory (Zedo.Find.zedoDir topDirs) $ do
-        print =<< getCurrentDirectory
+        -- print =<< getCurrentDirectory
         dispatch topDirs cmd
     where
     options :: ParserInfo (TopOptions, Command)
