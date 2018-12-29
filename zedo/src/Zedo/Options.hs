@@ -33,6 +33,7 @@ data Command
     | Find TargetOptions
     | Always [TargetOptions]
     | IfChange [TargetOptions]
+    | Phony
     -- TODO
     deriving (Read, Show)
 
@@ -47,19 +48,32 @@ topOptions = do
 
 (topCommands, subCommands) =
     let basic =
-            (  command "find" (info findOptions (progDesc "Report information about a zedo target or source file."))
-            <> command "always" (info (Always <$> targetsOptions) (progDesc "Rebuild a target, regardless of the state of its dependencies."))
-            <> command "ifchange" (info (IfChange <$> targetsOptions) (progDesc "Rebuild a target, but only if its dependencies are out-of-date."))
+            (  command "find"     (info findOptions
+                    (progDesc "Report information about a zedo target or source file."))
+            <> command "always"   (info alwaysOptions
+                    (progDesc "Rebuild a target, regardless of the state of its dependencies."))
+            <> command "ifchange" (info ifchangeOptions
+                    (progDesc "Rebuild a target, but only if its dependencies are out-of-date."))
             )
-        init = command "init" (info initOptions (progDesc "Create a zedo project."))
+        init = command "init" (info initOptions
+                    (progDesc "Create a zedo project."))
+        sub =
+            (  command "phony" (info phonyOptions
+                    (progDesc "Do not produce an output file for the calling target."))
+            -- TODO volatile
+            )
         def = (Always <$> targetsOptions)
-    in (hsubparser (init <> basic) <|> def, hsubparser basic <|> def)
+    in (hsubparser (init <> basic) <|> def, hsubparser (basic <> sub) <|> def)
 
 
 initOptions = pure Init
 findOptions = do
     targetSpecifier <- argument str (metavar "TARGET")
     pure $ Find TargetOptions{..}
+alwaysOptions = Always <$> targetsOptions
+ifchangeOptions = IfChange <$> targetsOptions
+phonyOptions = pure Phony
+
 targetsOptions = some $ do
     targetSpecifier <- argument str (metavar "TARGET")
     pure TargetOptions{..}

@@ -62,6 +62,10 @@ This is a detailed list because it's also serving as documentation about the alg
         - [ ] call the build procedure for each
         - [ ] join all the sub-processes
 - META: other zedo commands
+- [ ] zedo {phony,volative,also}
+    - [x] phony set parent's phony flag in db
+    - [ ] volative set parent's volative flag in db
+    - META
 - [ ] procedure: `build` on source file
     - [ ] clear the db
         - [ ] set state to "building"
@@ -75,9 +79,10 @@ This is a detailed list because it's also serving as documentation about the alg
 - [ ] procedure: `build` on output file
     - [ ] clear the db
         - [ ] set state to "building"
-        - [ ] clear extra actions
+        - [ ] clear hash
         - [ ] clear dependencies
-        - [ ] delete hash from db
+        - [ ] clear phony and volatile flags
+        - [ ] clear extra actions
     - [ ] register as dependency of parent in db
     - [ ] create locations
         - [x] create parent directory for out file
@@ -93,16 +98,17 @@ This is a detailed list because it's also serving as documentation about the alg
         - [x] stdin is closed
         - [ ] stdout and stderr go to the respective log files
     - [ ] cleanup
-        - [ ] move target files
-            - [ ] if failure, remove temp file
-            - [ ] else move temp file to output file
+        - [x] move target files
+            - [x] if failure, remove temp file
+            - [x] if target is phony, do not move output file
+            - [x] else move temp file to output file
+        - [x] set state in db to "ok" or "fail" on success/fail
+        - [ ] register hash in db if successful
+            - [ ] except if volatile exists, do not hash
         - [ ] handle extra actions
-            - [ ] if phony-record exists, output file
             - [ ] if also-records exist:
                 - [ ] record the script that built it in the db? (so a way can be found to build it even if it doesn't have a script)
                 - META
-        - [ ] set state in db to "ok" or "fail" on success/fail
-        - [ ] register hash in db if successful
     - META
 - [ ] auditing
     - [ ] only use System.Exit routines in the main module

@@ -85,8 +85,11 @@ findTargetFiles topDirs@TopDirs{..} TargetOptions{..} = maybe (pure Nothing) ioP
             else die $ "no source found for: " ++ srcFile
     purePart = do
         target <- fixupDoubleDot $ case (parent, targetSpecifier) of
-            (Just parent, relSpecifier) | "./" `isPrefixOf` relSpecifier
-                                        || "../" `isPrefixOf` relSpecifier -> parent </> relSpecifier
+            (Just parent, relSpecifier)
+                | "./" `isPrefixOf` relSpecifier
+                || "../" `isPrefixOf` relSpecifier ->
+                    let parentDir = takeDirectory parent
+                    in parentDir </> relSpecifier
             (_, ('/':absSpecifier)) -> absSpecifier
             (_, absSpecifier) -> absSpecifier
         let srcFile     = srcDir       </>        target

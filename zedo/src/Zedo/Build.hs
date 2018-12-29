@@ -1,6 +1,7 @@
 module Zedo.Build where
 
 import Zedo.Find
+import Zedo.Db
 
 import Data.Maybe
 import Data.List
@@ -16,17 +17,23 @@ import System.Process.Typed
 
 build :: TopDirs -> TargetFiles -> IO ExitCode
 build topDirs TargetFiles{..} = do
-    ec <- case doFile of
+    status <- withDb topDirs $ \db -> getStatus db target
+    case status of
+        Just ec -> pure ec
         Nothing -> do
-            hasSrc <- doesFileExist srcFile
-            pure $ if hasSrc then ExitSuccess else ExitFailure 1
-        Just doFile -> do
-            createDirectoryIfMissing True (takeDirectory outFile)
-            withStaging outFile $ \tmpFile -> do
-                ec <- runDoScript topDirs (target, doFile, tmpFile)
-                when (ec == ExitSuccess) $ renameFile tmpFile outFile
-                pure ec
-    pure ec
+            ec <- case doFile of
+                Nothing -> do
+                    hasSrc <- doesFileExist srcFile
+                    pure $ if hasSrc then ExitSuccess else ExitFailure 1
+                Just doFile -> do
+                    createDirectoryIfMissing True (takeDirectory outFile)
+                    withStaging outFile $ \tmpFile -> do
+                        ec <- runDoScript topDirs (target, doFile, tmpFile)
+                        isPhony <- withDb topDirs $ \db -> getPhony db target
+                        when (ec == ExitSuccess && not isPhony) $ renameFile tmpFile outFile
+                        pure ec
+            withDb topDirs $ \db -> setStatus db target ec
+            pure ec
 
 
 runDoScript :: TopDirs -> (FilePath, (FilePath, Maybe Extension), FilePath) -> IO ExitCode
