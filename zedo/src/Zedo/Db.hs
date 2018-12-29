@@ -19,6 +19,11 @@ initDb db = do
                 \);"
                 -- TODO hash, extra
 
+startRun :: Connection -> IO ()
+startRun db = do
+    execute_ db "DELETE FROM target;"
+
+
 getStatus :: Connection -> String -> IO (Maybe ExitCode)
 getStatus db targetName = do
     r <- queryNamed db "SELECT exitCode FROM target WHERE targetName = :targetName;"

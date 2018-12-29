@@ -10,6 +10,7 @@ import Control.Exception
 import Zedo.Options
 import Zedo.Find
 import Zedo.Command
+import Zedo.Db
 
 
 envTarget = "ZEDO_TARGET"
@@ -31,6 +32,7 @@ queen = do
         _ -> topDirsOrDie opts
     withCurrentDirectory (Zedo.Find.zedoDir topDirs) $ do
         -- print =<< getCurrentDirectory
+        withDb topDirs startRun
         dispatch topDirs cmd
     where
     options :: ParserInfo (TopOptions, Command)

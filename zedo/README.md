@@ -26,9 +26,10 @@ This is a detailed list because it's also serving as documentation about the alg
     - [x] move to zedo base dir
     - [ ] zedo command is always on the path
     - [ ] as root process
-        - [x] register self in the db as running
-        - [x] if another process got there first, exit
-        - [ ] clear data from previous builds (e.g. the old one might have died as a result of power failure)
+        - [ ] register self in the db as running
+        - [ ] remove self from db when exiting
+        - [ ] if another process got there first, exit
+        - [x] clear data from previous builds (e.g. the old one might have died as a result of power failure)
     - [x] as sub-process
         - [x] find the base dir from $ZEDO__BASEDIR
 - [ ] zedo init
