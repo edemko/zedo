@@ -56,7 +56,6 @@ This is a detailed list because it's also serving as documentation about the alg
         - [ ] detected extension
     - [ ] maybe cache it in the db, but then the db becomes a bottleneck for finding things, where I think the filesystem can work in parallel
 - [ ] zedo always
-    - [x] if it's a source file, skip to build procedure's cleanup as success
     - [x] call out to the build procedure
     - [ ] parallelism
         - [ ] check if more that one job slot is available
@@ -81,23 +80,27 @@ This is a detailed list because it's also serving as documentation about the alg
         - [ ] delete hash from db
     - [ ] register as dependency of parent in db
     - [ ] create locations
-        - [x] create parent directory for the temp file
         - [x] create parent directory for out file
+        - [x] create parent directory for the temp file&dir
+        - [x] create temp file
+        - [ ] create temp dir
         - [ ] create/truncate old log files
     - [ ] building
         - [x] set ZEDO_TARGET and ZEDO__BASEDIR
         - [x] create process that executes the build script
-        - [x] `$1` is the (tmp) target file
+        - [x] `$1` is the temp file
         - [x] `$2` is the target name without extension
-        - [x] using a temp file for atomicity
         - [x] stdin is closed
         - [ ] stdout and stderr go to the respective log files
     - [ ] cleanup
         - [ ] move target files
             - [ ] if failure, remove temp file
-            - [ ] elif extra actions has "phony", remove both temp and target files
-            - [ ] else move temp file to target file
-            - [ ] if extra actions has "also", META
+            - [ ] else move temp file to output file
+        - [ ] handle extra actions
+            - [ ] if phony-record exists, output file
+            - [ ] if also-records exist:
+                - [ ] record the script that built it in the db? (so a way can be found to build it even if it doesn't have a script)
+                - META
         - [ ] set state in db to "ok" or "fail" on success/fail
         - [ ] register hash in db if successful
     - META
