@@ -18,8 +18,12 @@ dispatch topDirs cmd = do
     case cmd of
         Init -> cmdInit topDirs
         Find target -> cmdFind topDirs target
-        Always targets -> cmdAlways topDirs `mapM_` targets
-        IfChange targets -> cmdAlways topDirs `mapM_` targets -- TODO
+        Always targets -> do
+            successes <- cmdAlways topDirs `mapM` targets
+            if and successes then pure () else die "a dependency failed to build"
+        IfChange targets -> do -- TODO
+            successes <- cmdAlways topDirs `mapM` targets
+            if and successes then pure () else die "a dependency failed to build"
         Phony -> cmdPhony topDirs
 
 cmdInit :: TopDirs -> IO ()
