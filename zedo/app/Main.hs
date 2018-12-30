@@ -26,14 +26,16 @@ main = lookupEnv envTarget >>= \case
 queen :: IO ()
 queen = do
     (opts, cmd) <- execParser options
-    topDirs <- case cmd of
+    case cmd of
         Init -> do
-            topDirsOrDie opts{ Zedo.Options.zedoDir = maybe (Just ".") Just (Zedo.Options.zedoDir opts) }
-        _ -> topDirsOrDie opts
-    withCurrentDirectory (Zedo.Find.zedoDir topDirs) $ do
-        -- print =<< getCurrentDirectory
-        withDb topDirs startRun
-        dispatch topDirs cmd
+            topDirs <- topDirsOrDie opts{ Zedo.Options.zedoDir = maybe (Just ".") Just (Zedo.Options.zedoDir opts) }
+            withCurrentDirectory (Zedo.Find.zedoDir topDirs) $ do
+                dispatch topDirs cmd
+        _ -> do
+            topDirs <- topDirsOrDie opts
+            withCurrentDirectory (Zedo.Find.zedoDir topDirs) $ do
+                withDb topDirs startRun
+                dispatch topDirs cmd
     where
     options :: ParserInfo (TopOptions, Command)
     options = info (helper <*> parser)
