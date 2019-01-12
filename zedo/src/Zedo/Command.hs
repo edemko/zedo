@@ -8,7 +8,6 @@ import Zedo.Db
 import System.FilePath
 import System.Directory
 import System.Environment hiding (setEnv)
-import Database.SQLite.Simple
 import System.Process.Typed
 import System.Exit
 import Control.Monad

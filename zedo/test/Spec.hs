@@ -145,8 +145,10 @@ test_always tmp = do
                 let targetOpts = TargetOptions { targetSpecifier = name }
                     outFile = tmp </> ".zedo" </> "build" </> name
                 cmdAlways topDirs targetOpts
-                state <- withDb topDirs $ \db -> getStatus db name
-                unless (state == Just ExitSuccess) $ error ("no 'ok' record for: " ++ name)
+                state <- withDb topDirs $ \db -> peekStatus db name
+                case state of
+                    Ok _ -> pure ()
+                    _ -> error ("no 'ok' record for: " ++ name)
                 unlessM (doesFileExist outFile) $ error (concat ["no output file produced: ", outFile])
                 contents <- readFile outFile
                 unless (contents == expected) $ error (unlines [ "Unexpected file contents. Actual contents as follows:", contents ])
@@ -154,8 +156,10 @@ test_always tmp = do
                 let targetOpts = TargetOptions { targetSpecifier = name }
                     outFile = tmp </> ".zedo" </> "build" </> name
                 cmdAlways topDirs targetOpts
-                state <- withDb topDirs $ \db -> getStatus db name
-                unless (state == Just ExitSuccess) $ error ("no 'ok' record for: " ++ name)
+                state <- withDb topDirs $ \db -> peekStatus db name
+                case state of
+                    Ok _ -> pure ()
+                    _ -> error ("no 'ok' record for: " ++ name)
                 whenM (doesFileExist outFile) $ error (concat ["unexpected output file produced: ", outFile])
         build "one.greet" "Hello, World!\n"
         buildPhony "phony"
