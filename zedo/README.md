@@ -38,7 +38,7 @@ This is a detailed list because it's also serving as documentation about the alg
     - [ ] create the database
         - [x] current_build table
         - [x] target table
-        - [ ] dependencies table
+        - [x] dependencies table
         - [ ] extra files table
         - META: other tables
     - [x] do not (re-)initialize if another process is already using it
@@ -79,10 +79,9 @@ This is a detailed list because it's also serving as documentation about the alg
     - [ ] clear the db
         - [x] set state to "lock"
         - [x] clear hash
-        - [ ] clear dependencies
+        - [x] clear dependencies
         - [x] clear phony and volatile flags
         - [ ] clear extra actions
-    - [ ] register as dependency of parent in db
     - [ ] create locations
         - [x] create parent directory for out file
         - [x] create parent directory for the temp file&dir
@@ -97,6 +96,8 @@ This is a detailed list because it's also serving as documentation about the alg
         - [x] stdin is closed
         - [ ] stdout and stderr go to the respective log files
     - [ ] cleanup
+        - [x] register as dependency of parent in db
+        - [x] register scripts as dependencies
         - [x] move target files
             - [x] if failure, remove temp file
             - [x] if target is phony, do not move output file

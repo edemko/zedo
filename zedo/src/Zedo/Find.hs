@@ -12,6 +12,8 @@ import System.Exit
 import Control.Arrow
 
 type Extension = String
+newtype ZedoPath = ZedoPath FilePath
+    deriving(Read, Show, Eq)
 
 
 findZedoDir :: IO (Maybe FilePath)
@@ -62,9 +64,9 @@ data TargetFiles = TargetFiles
     , targetFile :: FilePath
     , srcFile :: FilePath
     , isSource :: Bool
-    , allDoFiles :: [(FilePath, Maybe Extension)]
-    , doFile :: Maybe (FilePath, Maybe Extension)
-    , otherDoFiles :: [(FilePath, Maybe Extension)]
+    , allDoFiles :: [(ZedoPath, FilePath, Maybe Extension)]
+    , doFile :: Maybe (ZedoPath, FilePath, Maybe Extension)
+    , otherDoFiles :: [(ZedoPath, FilePath, Maybe Extension)]
     , outFile :: FilePath
     , distFile :: FilePath
     }
@@ -99,28 +101,37 @@ findTargetFiles topDirs@TopDirs{..} TargetOptions{..} = maybe (pure Nothing) ioP
         pure (target, srcFile, allDoFiles, outFile, distFile)
 
 
-findScript :: [(FilePath, Maybe Extension)] -> IO ([(FilePath, Maybe Extension)], Maybe (FilePath, Maybe Extension))
+findScript :: [(ZedoPath, FilePath, Maybe Extension)]
+           -> IO ( [(ZedoPath, FilePath, Maybe Extension)]
+                 , Maybe (ZedoPath, FilePath, Maybe Extension))
 findScript = loop []
     where
     loop acc [] = pure (reverse acc, Nothing)
-    loop acc ((path, ext):paths) = doesFileExist path >>= \case
-        True -> pure (reverse acc, Just (path, ext))
-        False -> loop ((path, ext):acc) paths
+    loop acc ((zpath, path, ext):paths) = doesFileExist path >>= \case
+        True -> pure (reverse acc, Just (zpath, path, ext))
+        False -> loop ((zpath, path, ext):acc) paths
 
-possibleScripts :: FilePath -> FilePath -> [(FilePath, Maybe Extension)]
+possibleScripts :: FilePath -> FilePath -> [(ZedoPath, FilePath, Maybe Extension)]
 possibleScripts scriptRoot targetRelPath_unsafe = case fixupDoubleDot targetRelPath_unsafe of
     Nothing -> []
-    Just targetRelPath -> first (normalise . (scriptRoot </>)) <$> relScripts
+    Just targetRelPath -> adapt <$> relScripts
         where
-        relScripts = (targetRelPath <.> "do", Nothing)
-                    : (second Just <$> defaultScripts targetRelPath)
+        relScripts = (ZedoPath specificScript, specificScript, Nothing)
+                   : (defaultScripts targetRelPath)
+        specificScript = targetRelPath <.> "do"
+        adapt (ZedoPath zpath, relpath, ext) =
+            ( ZedoPath $ normalise zpath
+            , normalise $ scriptRoot </> relpath
+            , ext
+            )
 
 
-defaultScripts :: FilePath -> [(FilePath, Extension)]
+defaultScripts :: FilePath -> [(ZedoPath, FilePath, Maybe Extension)]
 defaultScripts targetRelPath = do
     scriptDir <- scriptDirs (takeDirectory targetRelPath)
     extention <- extensions (takeFileName targetRelPath)
-    pure $ (scriptDir </> "default" <.> extention <.> "do", '.':extention)
+    let zpath = scriptDir </> "default" <.> extention <.> "do"
+    pure $ (ZedoPath zpath, zpath, Just $ '.':extention)
 
 scriptDirs :: FilePath -> [FilePath]
 scriptDirs "/" = ["/"]

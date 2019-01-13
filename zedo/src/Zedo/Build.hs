@@ -46,12 +46,19 @@ build topDirs TargetFiles{..} = do
                             (ExitFailure ec, _) -> do
                                 pure $ Fail (ExitFailure ec)
             withDb topDirs $ \db -> do
+                case parent topDirs of
+                    Nothing -> pure ()
+                    Just parent -> saveDep db Change parent target
+                case doFile of
+                    Nothing -> pure ()
+                    Just (doFile, _, _) -> saveScriptDep db Change target doFile
+                forM_ otherDoFiles $ \(doFile, _, _) -> saveScriptDep db Create target doFile
                 setStatus db id status
             pure $ statusToExitCode status
 
 
-runDoScript :: TopDirs -> (FilePath, (FilePath, Maybe Extension), FilePath) -> IO ExitCode
-runDoScript TopDirs{..} (target, (doFile, ext), tmpFile) = do
+runDoScript :: TopDirs -> (FilePath, (ZedoPath, FilePath, Maybe Extension), FilePath) -> IO ExitCode
+runDoScript TopDirs{..} (target, (_, doFile, ext), tmpFile) = do
     let extraEnv =
             [ ("ZEDO_TARGET", target)
             , ("ZEDO__BASEDIR", zedoDir)

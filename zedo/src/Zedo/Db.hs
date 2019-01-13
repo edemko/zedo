@@ -23,15 +23,22 @@ statusToExitCode :: TargetStatus -> ExitCode
 statusToExitCode (Ok _) = ExitSuccess
 statusToExitCode (Fail ec) = ec
 
+data DepType = Change | Create
+    deriving(Read, Show, Eq)
+data TargetLoc = Target | Script
+    deriving(Read, Show, Eq)
+
 
 initDb :: Connection -> IO ()
 initDb db = do
-    execute_ db "CREATE TABLE target \n\
+    execute_ db "CREATE TABLE target\n\
                 \( id         INTEGER PRIMARY KEY\n\
+                \, location   TEXT NOT NULL\n\
                 \, targetName TEXT NOT NULL UNIQUE\n\
                 \, hash       TEXT\n\
+                \, CONSTRAINT enum_location CHECK (location IN ('Target', 'Script'))\n\
                 \);"
-    execute_ db "CREATE TABLE targetRun \n\
+    execute_ db "CREATE TABLE targetRun\n\
                 \( id         INTEGER NOT NULL UNIQUE\n\
                 \, status     TEXT NOT NULL\n\
                 \, exitCode   INTEGER\n\
@@ -42,6 +49,12 @@ initDb db = do
                 \   CHECK (status IN ('lock', 'ok', 'fail'))\n\
                 \, CONSTRAINT failWithExitCode\
                 \   CHECK (CASE status WHEN 'fail' THEN exitCode NOT NULL ELSE exitCode IS NULL END)\n\
+                \);"
+    execute_ db "CREATE TABLE dependency\n\
+                \( deptype   TEXT NOT NULL\n\
+                \, parent_id INTEGER NOT NULL REFERENCES target(id)\n\
+                \, child_id  INTEGER NOT NULL REFERENCES target(id)\n\
+                \, CONSTRAINT enum_deptype CHECK (deptype IN ('Change', 'Create'))\n\
                 \);"
                 -- TODO extra
 
@@ -54,16 +67,18 @@ startTargetRun db targetName = do
     r <- queryNamed db "SELECT target.id, status, exitCode, hash\n\
                        \FROM target\n\
                        \    LEFT JOIN targetRun ON (target.id = targetRun.id)\n\
-                       \WHERE targetName = :name;"
+                       \WHERE targetName = :name AND location = 'Target';"
         [ ":name" := targetName ]
     case r of
         [(id, Just status, ec, hash)] -> pure (TId id, xformStatus status ec hash)
         [(id, Nothing, _, _)] -> do
             executeNamed db "INSERT INTO targetRun (id, status) VALUES (:id, 'lock');"
                 [ ":id" := id ]
+            executeNamed db "DELETE FROM dependency WHERE parent_id = :id;"
+                [ ":id" := id ]
             pure (TId id, Acquired)
         [] -> do
-            executeNamed db "INSERT INTO target (targetName) VALUES (:name);"
+            executeNamed db "INSERT INTO target (targetName, location) VALUES (:name, 'Target');"
                 [ ":name" := targetName ]
             [Only id] <- queryNamed db "SELECT id FROM target WHERE targetName = :name;"
                 [ ":name" := targetName ]
@@ -91,8 +106,33 @@ setStatus db (TId id) (Fail (ExitFailure ec)) = do
     executeNamed db "UPDATE targetRun SET (status, exitCode) = ('fail', :ec) WHERE id = :id;"
         [ ":id" := id, ":ec" := ec ]
 
--- setHash :: Connection -> TargetId -> Maybe String -> IO ()
--- setHash db (TId id) hash = do
+saveDep :: Connection -> DepType -> String -> String -> IO ()
+saveDep db deptype parent child = do
+    [(Only (pid :: Int))] <- queryNamed db "SELECT id FROM target WHERE targetName = :name;"
+        [ ":name" := parent ]
+    [(Only (cid :: Int))] <- queryNamed db "SELECT id FROM target WHERE targetName = :name;"
+        [ ":name" := child ]
+    executeNamed db "INSERT INTO dependency (deptype, parent_id, child_id)\n\
+                    \VALUES (:deptype, :pid, :cid);"
+        [ ":deptype" := show deptype, ":pid" := pid, ":cid" := cid ]
+
+saveScriptDep :: Connection -> DepType -> String -> ZedoPath -> IO ()
+saveScriptDep db deptype parent (ZedoPath child) = do
+    [(Only (pid :: Int))] <- queryNamed db "SELECT id FROM target WHERE targetName = :name AND location = 'Target';"
+        [ ":name" := parent ]
+    r <- queryNamed db "SELECT id FROM target WHERE targetName = :name AND location = 'Script';"
+        [ ":name" := child ]
+    (TId cid) <- case r of
+        [(Only id)] -> pure $ TId id
+        [] -> do
+            executeNamed db "INSERT INTO target (targetName, location) VALUES (:name, 'Script');"
+                [ ":name" := child ]
+            [Only id] <- queryNamed db "SELECT id FROM target WHERE targetName = :name;"
+                [ ":name" := child ]
+            pure $ TId id
+    executeNamed db "INSERT INTO dependency (deptype, parent_id, child_id)\n\
+                    \VALUES (:deptype, :pid, :cid);"
+        [ ":deptype" := show deptype, ":pid" := pid, ":cid" := cid ]
 
 getPhony :: Connection -> String -> IO Bool
 getPhony db targetName = do
