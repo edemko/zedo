@@ -38,7 +38,7 @@ This is a detailed list because it's also serving as documentation about the alg
     - [ ] create the database
         - [x] current_build table
         - [x] target table
-        - [ ] dependencies table
+        - [x] dependencies table
         - [ ] extra files table
         - META: other tables
     - [x] do not (re-)initialize if another process is already using it
@@ -67,29 +67,21 @@ This is a detailed list because it's also serving as documentation about the alg
         - [ ] join all the sub-processes
     - [x] flag to also print the target file, each target is on a new line
 - META: other zedo commands
-- [ ] zedo {phony,volative,also}
-    - [x] phony set parent's phony flag in db
-    - [ ] volative set parent's volative flag in db
+- [ ] zedo {phony,volatile,also}
+    - [x] phony: set parent's phony flag in db
+    - [ ] volatile: set parent's volatile flag in db
     - META
-- [ ] procedure: `build` on source file
+- [ ] procedure: `build`
+    - [ ] check the db
+        - [x] if state is ok or fail, simply report here
+        - [ ] if the state is already locked, wait for it to unlock
+        - [x] otherwise set state to "locked" and continue
     - [ ] clear the db
-        - [ ] set state to "building"
-        - [ ] clear extra actions
-        - [ ] clear dependencies
-        - [ ] delete hash from db
-    - [ ] register as dependency of parent in db
-    - [ ] cleanup
-        - [ ] set state in db to "ok" or "fail" on success/fail
-        - [ ] register hash in db if successful
-- [ ] procedure: `build` on output file
-    - [ ] if another process is building, wait for it to complete
-    - [ ] clear the db
-        - [ ] set state to "building"
+        - [x] set state to "lock"
         - [x] clear hash
-        - [ ] clear dependencies
+        - [x] clear dependencies
         - [x] clear phony and volatile flags
         - [ ] clear extra actions
-    - [ ] register as dependency of parent in db
     - [ ] create locations
         - [x] create parent directory for out file
         - [x] create parent directory for the temp file&dir
@@ -104,12 +96,15 @@ This is a detailed list because it's also serving as documentation about the alg
         - [x] stdin is closed
         - [ ] stdout and stderr go to the respective log files
     - [ ] cleanup
+        - [x] register as dependency of parent in db
+        - [x] register scripts as dependencies
         - [x] move target files
             - [x] if failure, remove temp file
             - [x] if target is phony, do not move output file
             - [x] else move temp file to output file
         - [x] set state in db to "ok" or "fail" on success/fail
         - [ ] register hash in db if successful
+            - [x] except if phony exists, do not hash
             - [ ] except if volatile exists, do not hash
         - [ ] handle extra actions
             - [ ] if also-records exist:

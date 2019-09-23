@@ -31,6 +31,8 @@ default-extensions:
 dependencies:
 - base >=4.7 && <5
 # FIXME I want a more typed interface to files than filepath+directory
+- bytestring
+- cryptonite
 - directory ==1.*
 - filepath
 - optparse-applicative ==0.14.*

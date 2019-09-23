@@ -66,9 +66,9 @@ test_find tmp = do
                 , targetFile = outFile expect
                 , srcFile = "src/one.greet"
                 , isSource = False
-                , allDoFiles = [ ("do/one.greet.do", Nothing), ("do/default.greet.do", Just ".greet") ]
-                , doFile = Just ("do/default.greet.do", Just ".greet")
-                , otherDoFiles = [ ("do/one.greet.do", Nothing) ]
+                , allDoFiles = [ (ZedoPath "one.greet.do", "do/one.greet.do", Nothing), (ZedoPath "default.greet.do", "do/default.greet.do", Just ".greet") ]
+                , doFile = Just (ZedoPath "default.greet.do", "do/default.greet.do", Just ".greet")
+                , otherDoFiles = [ (ZedoPath "one.greet.do", "do/one.greet.do", Nothing) ]
                 , outFile = ".zedo/build/one.greet"
                 , distFile = "dist/one.greet"
                 }
@@ -88,9 +88,9 @@ test_find tmp = do
                 , targetFile = outFile expect
                 , isSource = False
                 , srcFile = "src/alice.greet"
-                , allDoFiles = [ ("do/alice.greet.do", Nothing), ("do/default.greet.do", Just ".greet") ]
-                , doFile = Just ("do/default.greet.do", Just ".greet")
-                , otherDoFiles = [ ("do/alice.greet.do", Nothing) ]
+                , allDoFiles = [ (ZedoPath "alice.greet.do", "do/alice.greet.do", Nothing), (ZedoPath "default.greet.do", "do/default.greet.do", Just ".greet") ]
+                , doFile = Just (ZedoPath "default.greet.do", "do/default.greet.do", Just ".greet")
+                , otherDoFiles = [ (ZedoPath "alice.greet.do", "do/alice.greet.do", Nothing) ]
                 , outFile = ".zedo/build/alice.greet"
                 , distFile = "dist/alice.greet"
                 }
@@ -110,9 +110,9 @@ test_find tmp = do
                 , targetFile = outFile expect
                 , isSource = False
                 , srcFile = "src/alice.greet"
-                , allDoFiles = [ ("do/alice.greet.do", Nothing), ("do/default.greet.do", Just ".greet") ]
-                , doFile = Just ("do/default.greet.do", Just ".greet")
-                , otherDoFiles = [ ("do/alice.greet.do", Nothing) ]
+                , allDoFiles = [ (ZedoPath "alice.greet.do", "do/alice.greet.do", Nothing), (ZedoPath "default.greet.do", "do/default.greet.do", Just ".greet") ]
+                , doFile = Just (ZedoPath "default.greet.do", "do/default.greet.do", Just ".greet")
+                , otherDoFiles = [ (ZedoPath "alice.greet.do", "do/alice.greet.do", Nothing) ]
                 , outFile = ".zedo/build/alice.greet"
                 , distFile = "dist/alice.greet"
                 }
@@ -145,8 +145,10 @@ test_always tmp = do
                 let targetOpts = TargetOptions { targetSpecifier = name }
                     outFile = tmp </> ".zedo" </> "build" </> name
                 cmdAlways topDirs targetOpts
-                state <- withDb topDirs $ \db -> getStatus db name
-                unless (state == Just ExitSuccess) $ error ("no 'ok' record for: " ++ name)
+                state <- withDb topDirs $ \db -> peekStatus db name
+                case state of
+                    Ok _ -> pure ()
+                    _ -> error ("no 'ok' record for: " ++ name)
                 unlessM (doesFileExist outFile) $ error (concat ["no output file produced: ", outFile])
                 contents <- readFile outFile
                 unless (contents == expected) $ error (unlines [ "Unexpected file contents. Actual contents as follows:", contents ])
@@ -154,8 +156,10 @@ test_always tmp = do
                 let targetOpts = TargetOptions { targetSpecifier = name }
                     outFile = tmp </> ".zedo" </> "build" </> name
                 cmdAlways topDirs targetOpts
-                state <- withDb topDirs $ \db -> getStatus db name
-                unless (state == Just ExitSuccess) $ error ("no 'ok' record for: " ++ name)
+                state <- withDb topDirs $ \db -> peekStatus db name
+                case state of
+                    Ok _ -> pure ()
+                    _ -> error ("no 'ok' record for: " ++ name)
                 whenM (doesFileExist outFile) $ error (concat ["unexpected output file produced: ", outFile])
         build "one.greet" "Hello, World!\n"
         buildPhony "phony"

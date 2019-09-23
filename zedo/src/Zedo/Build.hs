@@ -13,31 +13,52 @@ import System.Exit
 import Control.Exception
 import Control.Monad
 import System.Process.Typed
+import qualified Data.ByteString.Lazy as LBS
+import qualified Crypto.Hash as Hash
 
 
 build :: TopDirs -> TargetFiles -> IO ExitCode
 build topDirs TargetFiles{..} = do
-    status <- withDb topDirs $ \db -> getStatus db target
+    (id, status) <- withDb topDirs $ \db -> startTargetRun db target
     case status of
-        Just ec -> pure ec
-        Nothing -> do
-            ec <- case doFile of
-                Nothing -> do
-                    hasSrc <- doesFileExist srcFile
-                    pure $ if hasSrc then ExitSuccess else ExitFailure 1
+        Ok hash -> pure ExitSuccess
+        Fail ec -> pure ec
+        Locked -> undefined -- TODO sleep a moment, then recurse
+        Acquired -> do
+            status <- case doFile of
+                Nothing -> doesFileExist srcFile >>= \case
+                    True -> do
+                        hash <- hashFile srcFile
+                        pure $ Ok (Just hash)
+                    False -> pure $ Fail (ExitFailure 1)
                 Just doFile -> do
                     createDirectoryIfMissing True (takeDirectory outFile)
                     withStaging outFile $ \tmpFile -> do
                         ec <- runDoScript topDirs (target, doFile, tmpFile)
                         isPhony <- withDb topDirs $ \db -> getPhony db target
-                        when (ec == ExitSuccess && not isPhony) $ renameFile tmpFile outFile
-                        pure ec
-            withDb topDirs $ \db -> setStatus db target ec
-            pure ec
+                        case (ec, isPhony) of
+                            (ExitSuccess, False) -> do
+                                renameFile tmpFile outFile
+                                hash <- hashFile outFile
+                                pure $ Ok (Just hash)
+                            (ExitSuccess, True) -> do
+                                pure $ Ok Nothing
+                            (ExitFailure ec, _) -> do
+                                pure $ Fail (ExitFailure ec)
+            withDb topDirs $ \db -> do
+                case parent topDirs of
+                    Nothing -> pure ()
+                    Just parent -> saveDep db Change parent target
+                case doFile of
+                    Nothing -> pure ()
+                    Just (doFile, _, _) -> saveScriptDep db Change target doFile
+                forM_ otherDoFiles $ \(doFile, _, _) -> saveScriptDep db Create target doFile
+                setStatus db id status
+            pure $ statusToExitCode status
 
 
-runDoScript :: TopDirs -> (FilePath, (FilePath, Maybe Extension), FilePath) -> IO ExitCode
-runDoScript TopDirs{..} (target, (doFile, ext), tmpFile) = do
+runDoScript :: TopDirs -> (FilePath, (ZedoPath, FilePath, Maybe Extension), FilePath) -> IO ExitCode
+runDoScript TopDirs{..} (target, (_, doFile, ext), tmpFile) = do
     let extraEnv =
             [ ("ZEDO_TARGET", target)
             , ("ZEDO__BASEDIR", zedoDir)
@@ -60,5 +81,10 @@ withStaging outFile = bracket setup teardown
         emptyTempFile baseDir (baseFile ++ "..tmp")
     teardown tmpFile = do
         removeFile tmpFile `catch` ignoreIoErrors
+
+hashFile :: FilePath -> IO Hash
+hashFile filepath = do
+    contents <- LBS.readFile filepath
+    pure . Hash . show $ Hash.hashlazy @Hash.Tiger contents
 
 ignoreIoErrors (_ :: IOError) = pure ()
