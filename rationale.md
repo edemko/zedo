@@ -73,6 +73,7 @@ It'd be better if I could put these in the do-script directory.
 * `zedo query` what are the known output/dist files, are there any output files without a 
 discoverable script (i.e. made only though `zedo also`), and other db-level things
 * further commands will simply abstract database queries, but those will only be needed in the final, polished product
+* You know, sometimes, a glob is a useful thing to save in the if-change/if-create database
 
 I find myself doing `a=$2.foo; zedo ifchange $a; a=$(zedo find $a)` a lot.
 It'd be nice to do just `a=$(zedo ifchange --find $2.foo)`.
