@@ -3,9 +3,9 @@ set -e
 
 ### Load up zedo libraries ###
 
+# TODO in the final form, don't do any sourcing
 HERE="$(dirname "${0}")"
-# TODO I may "compile" (cat) all the scripts together for deployment, we'll see
-. "${HERE}/zedo_funcs.sh" # FIXME have some error handling if you can't find the file
+. "${HERE}/zedo_funcs.sh"
 
 ### Determine Parentage ###
 
@@ -28,13 +28,18 @@ fi
 
 ### Parse Options ###
 
+# NOTE Variables starting with `ZEDO__config_` are only used when working out what the true
+# variables that will be used for the process and all children will be.
+# After that (i.e. after ZEDO__setSandboxFromBase), they should not be used or exported.
+
 # initial values
-ZEDO__VERBOSITY=1
+ZEDO__verbosity=1
+ZEDO__config_basedir=
 
 # whether this is a root or child invocation this will determine which options are available
 if ZEDO__isRootInvocation; then
     OPTS="hqv"
-    LONGOPTS="help,version,quiet,verbose"
+    LONGOPTS="help,version,quiet,verbose,zedo-dir:"
 else
     OPTS=""
     LONGOPTS=""
@@ -53,10 +58,16 @@ while true; do
             exit 0
             ;;
         -q|--quiet)
-            ZEDO__VERBOSITY=$((${ZEDO__VERBOSITY} - 1))
+            ZEDO__verbosity=$((${ZEDO__verbosity} - 1))
             ;;
         -v|--verbose)
-            ZEDO__VERBOSITY=$((${ZEDO__VERBOSITY} + 1))
+            ZEDO__verbosity=$((${ZEDO__verbosity} + 1))
+            ;;
+        --zedo-dir)
+            if [ -n "${2}" ]; then
+                ZEDO__config_basedir="${2}"
+                shift
+            fi
             ;;
         --)
             shift
@@ -66,9 +77,6 @@ while true; do
     esac
     shift
 done
-
-# inherited configuration
-export ZEDO__VERBOSITY
 
 
 
@@ -82,6 +90,9 @@ case "${1}" in
         CMD="${1}"
         shift
         ;;
+    developer-stuff) # NOTE this is an undocumented command used only for testing stuff out temporarily
+        exit 0
+        ;;
     *)
         CMD=always
         ;;
@@ -90,6 +101,7 @@ esac
 # based on command, dispatch to zedo functions
 case "${CMD}" in
     init)
+        ZEDO__notInDoScript "${CMD}"
         if [ "$#" = "0" ]; then
             INIT_DIR=`pwd`
         elif [ "$#" = "1" ]; then
@@ -98,16 +110,20 @@ case "${CMD}" in
             ZEDO__log WARNING "multiple directories given to ${0} ${CMD}; ignoring all but first"
             INIT_DIR="${1}"
         fi
-        ZEDO__setDirsFromBase "${INIT_DIR}"
+        ZEDO__setSandboxFromBase "${INIT_DIR}"
         zedo_${CMD}
         ;;
     reset)
-        # FIXME find the base dir
+        ZEDO__notInDoScript "${CMD}"
         if [ "$#" != "0" ]; then
             ZEDO__log WARNING "unexpected arguments to ${0} ${CMD} found; ignoring extras"
         fi
-        ZEDO__setDirsFromBase "${ZEDO__BASEDIR}"
+        if [ -z "${ZEDO__config_basedir}" ]; then
+            ZEDO__config_basedir="$(ZEDO__findBaseDir `pwd`)"
+        fi
+        ZEDO__setSandboxFromBase "${ZEDO__config_basedir}"
         zedo_${CMD}
         ;;
+    # NOTE commands that might call zedo recursively must set&export sandbox
     *) ZEDO__programmerError "Unimplemented command '${CMD}'" ;;
 esac

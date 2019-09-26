@@ -2,7 +2,7 @@
 # Every definition in here should start with `ZEDO__` to avoid collisions with other
 # definitions in the environment.
 
-# Most of the functions in here won't work until after ZEDO__setDirsFromBase is called.
+# Most of the functions in here won't work until after ZEDO__setSandboxFromBase is called.
 # These include: ZEDO__{builddb,startZedo,stopZedo} and ZEDO__db
 
 ZEDO__VERSION_MAJOR=1
@@ -28,17 +28,52 @@ OPTIONS
 ZEDO__isRootInvocation() {
     [ -z "${ZEDO__PARENT}" ] && return 0 || return 1
 }
+ZEDO__onlyInDoScript() {
+    local cmd="${1}"
+    ZEDO__isRootInvocation && ZEDO__die "Do not call ${0} ${cmd} from a do-script."
+    return 0
+}
+ZEDO__notInDoScript() {
+    local cmd="${1}"
+    ZEDO__isRootInvocation || ZEDO__die "Do not call ${0} ${cmd} from a do-script."
+    return 0
+}
 
-# FIXME I expect that all of the variables defined in here could just be exported
-# instead of having each and every invocation call this code
-ZEDO__setDirsFromBase() {
-    ZEDO__log DEBUG "ZEDO__setDirsFromBase"
+ZEDO__findBaseDir() {
+    ZEDO__log DEBUG "ZEDO__findBaseDir"
+    local candidate
+    candidate="${1}"
+
+    while [ -n "${candidate}" -a "${candidate}" != "/" ]; do
+        # TODO if it's not the same filesystem, abort
+        ZEDO__log DEBUG "looking for baseDir: ${candidate}"
+        if [ -d "${candidate}/.zedo" ]; then
+            ZEDO__log DEBUG "found baseDir: ${candidate}"
+            echo "${candidate}"
+            return 0
+        else
+            candidate="$(dirname "${candidate}")"
+        fi
+    done
+    ZEDO__die "Could not find zedo sandbox starting from ${1}."
+}
+
+ZEDO__setSandboxFromBase() {
+    ZEDO__log DEBUG "ZEDO__setSandboxFromBase"
+
     ZEDO__baseDir="${1}"
     ZEDO__log TRACE "ZEDO__baseDir=${ZEDO__baseDir}"
+
     ZEDO__workDir="${ZEDO__baseDir}/.zedo"
     ZEDO__log TRACE "ZEDO__workDir=${ZEDO__workDir}"
+
     ZEDO__dbfile="${ZEDO__workDir}/build.sqlite"
     ZEDO__log TRACE "ZEDO__dbfile=${ZEDO__dbfile}"
+
+}
+ZEDO__exportConfigAndSandbox() {
+    export ZEDO__verbosity
+    export ZEDO__baseDir ZEDO__workDir ZEDO__dbfile
 }
 
 ZEDO__builddb() {
@@ -61,9 +96,8 @@ ZEDO__stopZedo() {
     fi
 }
 
-# TODO
-## record a dependency of $1 on $2, $3...
-#ZEDO__logdeps() {}
+
+
 
 
 ZEDO__typeToLevel() {
@@ -84,8 +118,9 @@ ZEDO__levelIs() {
     local type level
     type="${1}"
     level=`ZEDO__typeToLevel "${type}"`
-    [ "${ZEDO__VERBOSITY}" -ge "${level}" ] && return 0 || return 1
+    [ "${ZEDO__verbosity}" -ge "${level}" ] && return 0 || return 1
 }
+
 ZEDO__log() {
     local type msg prefix
     type=$1
@@ -105,11 +140,13 @@ ZEDO__die() {
     ZEDO__log 'FATAL' $@
     exit 1
 }
+
 ZEDO__alreadyRunning() {
     ZEDO__log ERROR "It looks like another zedo process is running or didn't clean up after itself."
     ZEDO__log NOTE "Try \`zedo reset\` if you're sure another zedo instance isn't working on this project."
     ZEDO__die "Was not able to startup zedo."
 }
+
 ZEDO__programmerError() {
     echo >&2 "[PROGRAMMER ERROR] ${1}. Please file a bug report/patch!"
     echo >&2 "[WARNING] For now, cowardly aborting."
@@ -117,12 +154,15 @@ ZEDO__programmerError() {
 }
 
 
+
+
+
 ZEDO__db() {
     ZEDO__log SQL "${1}"
     if ZEDO__levelIs DEBUG; then
         sqlite3 -batch "${ZEDO__dbfile}" "${1}"
     else
-        2>/dev/null sqlite3 -batch "${1}" "${2}"
+        2>/dev/null sqlite3 -batch "${ZEDO__dbfile}" "${2}"
     fi
 }
 

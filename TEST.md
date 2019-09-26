@@ -8,8 +8,16 @@ It is broken up into sections based on the command begin tested
 ## General
 
 Parentage:
+
   * there is a parent only parent when ZEDO__TARGET is set on startup
   * if there is a parent, ZEDO__TARGET is set to it on startup, but by the time commands are being executed, ZEDO__PARENT set to hold it and ZEDO__TARGET has different semantics (is different, except when a script is (likely) pathological)
+
+Searching for a sandbox:
+
+  * if the pwd contains a `.zedo` directory, report it
+  * when a parent directory contains a `.zedo` directory, report the closest
+  * when no parent directory contains a `.zedo`, abort
+  * [TODO] also abort if closest sandbox is on a different filesystem
 
 Boring stuff:
 

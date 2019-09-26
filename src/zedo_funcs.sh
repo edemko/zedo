@@ -1,5 +1,6 @@
+# TODO in the final form, don't do any sourcing
 HERE=$(dirname "${0}")
-. "${HERE}/zedo_utils.sh" # FIXME have some error handling if you can't find the file
+. "${HERE}/zedo_utils.sh"
 
 
 zedo_init() {
