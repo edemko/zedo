@@ -13,7 +13,7 @@ HERE="$(dirname "${0}")"
 # then that must have been the target under build when this script was invoked.
 # As such, we can determine that the parent of this invocation is in `ZEDO__TARGET`.
 if [ -n "${ZEDO__TARGET}" ]; then
-    ZEDO__PARENT="${ZEDO__TARGET}"
+    export ZEDO__PARENT="${ZEDO__TARGET}"
     unset ZEDO__TARGET
 else
 # If there was no `ZEDO__TARGET` when this script was invoked,
@@ -32,14 +32,15 @@ fi
 # variables that will be used for the process and all children will be.
 # After that (i.e. after ZEDO__setSandboxFromBase), they should not be used or exported.
 
-# initial values
-ZEDO__verbosity=1
-ZEDO__config_basedir=
 
 # whether this is a root or child invocation this will determine which options are available
 if ZEDO__isRootInvocation; then
     OPTS="hqv"
     LONGOPTS="help,version,quiet,verbose,zedo-dir:"
+
+    # initial values
+    ZEDO__verbosity=1
+    ZEDO__config_basedir=
 else
     OPTS=""
     LONGOPTS=""

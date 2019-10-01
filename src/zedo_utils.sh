@@ -83,17 +83,17 @@ ZEDO__builddb() {
 
 ZEDO__startZedo() {
     ZEDO__log DEBUG "ZEDO__startZedo"
-    ZEDO__db "${ZEDO__startup_sql}" || ZEDO__alreadyRunning
-    if ZEDO__levelIs DEBUG; then
-        ZEDO__db "SELECT * from status;"
-    fi
+    # ZEDO__db "${ZEDO__startup_sql}" || ZEDO__alreadyRunning
+    # if ZEDO__levelIs DEBUG; then
+    #     ZEDO__db "SELECT * from status;"
+    # fi
 }
 ZEDO__stopZedo() {
     ZEDO__log DEBUG "ZEDO__stopZedo"
-    ZEDO__db "${ZEDO__teardown_sql}"
-    if ZEDO__levelIs DEBUG; then
-        ZEDO__db "SELECT * from status;"
-    fi
+    # ZEDO__db "${ZEDO__teardown_sql}"
+    # if ZEDO__levelIs DEBUG; then
+    #     ZEDO__db "SELECT * from status;"
+    # fi
 }
 
 
@@ -138,6 +138,9 @@ ZEDO__log() {
 }
 ZEDO__die() {
     ZEDO__log 'FATAL' $@
+    if ZEDO__isRootInvocation && [ -n "${ZEDO__dbfile}" ]; then
+        ZEDO__stopZedo
+    fi
     exit 1
 }
 
@@ -150,6 +153,9 @@ ZEDO__alreadyRunning() {
 ZEDO__programmerError() {
     echo >&2 "[PROGRAMMER ERROR] ${1}. Please file a bug report/patch!"
     echo >&2 "[WARNING] For now, cowardly aborting."
+    if ZEDO__isRootInvocation && [ -n "${ZEDO__dbfile}" ]; then
+        ZEDO__stopZedo
+    fi
     exit 127
 }
 
