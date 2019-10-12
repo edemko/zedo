@@ -28,7 +28,45 @@ zedo_reset() {
 }
 
 zedo_always() {
-    echo >&2 "zedo_always unimplemented"
+    local script err
+    err=0
+    ZEDO__log DEBUG "zedo_always"
+    ZEDO__isRootInvocation || ZEDO__recordDep "$ZEDO__PARENT" "$ZEDO__TARGET"
+    # TODO this is where ifchange/ifcreate would be tested
+    ZEDO__clearFileInfo "$ZEDO__TARGET"
+    ZEDO__recordFile '???' "$ZEDO__TARGET"
+    script="$(ZEDO__searchForScripts "$ZEDO__TARGET")"
+    if [ -z "$script" ]; then
+        if [ -e "${ZEDO__srcDir}/${ZEDO__TARGET}" ]; then
+            ZEDO__log TRACE "Source file available."
+            ZEDO__TARGET_type=SRC
+        else
+            ZEDO__log ERROR "No source file or do script available for target: ${ZEDO__TARGET}"
+            ZEDO__errorAccum="${ZEDO__errorAccum}
+    ${ZEDO__TARGET}"
+            return 0
+        fi
+    else
+        ZEDO__log TRACE "Best available do-script is: ${script}"
+        ZEDO__TARGET_script="$script"
+        ZEDO__TARGET_type=OUT
+    fi
+
+    if [ "$ZEDO__TARGET_type" = SRC ]; then
+        ZEDO__recordFile SRC "$ZEDO__TARGET"
+        # FIXME only do the mkdir+cp if outDir != srcDir
+        mkdir -p "$(dirname "${ZEDO__outDir}/${ZEDO__TARGET}")"
+        cp "${ZEDO__srcDir}/${ZEDO__TARGET}" "${ZEDO__outDir}/${ZEDO__TARGET}"
+    elif [ "$ZEDO__TARGET_type" = OUT ]; then
+        ZEDO__recordFile OUT "$ZEDO__TARGET"
+        echo >&2 "zedo always unimplemented for output files"
+        # then run the script that was found
+        # did the script work?
+            # if so, move the resulting file into place
+            # if not, clean up the output file
+    fi # TODO throw in a programmer error on the else branch
+    ZEDO__recordHash "${ZEDO__TARGET}"
+    # record the hash
 }
 zedo_ifcreate() {
     echo >&2 "zedo_ifcreate unimplemented"

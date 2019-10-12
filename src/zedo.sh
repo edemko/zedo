@@ -46,7 +46,7 @@ else
     LONGOPTS=""
 fi
 
-ARGS=$(getopt -n "${0}" -o="${OPTS}" -l="${LONGOPTS}" -- $@)
+ARGS=$(getopt -n "${0}" -o="${OPTS}" -l="${LONGOPTS}" -- "$@")
 eval set -- $ARGS
 while true; do
     case "${1}" in
@@ -103,7 +103,12 @@ esac
 case "${CMD}" in
     init)
         ZEDO__notInDoScript "${CMD}"
-        if [ "$#" = "0" ]; then
+        if [ -n "${ZEDO__config_basedir}" ]; then
+            INIT_DIR="${ZEDO__config_basedir}"
+            if [ "$#" != "0" ]; then
+                ZEDO__log WARNING "multiple directories given to ${0} ${CMD}; ignoring all but --zedo-dir"
+            fi
+        elif [ "$#" = "0" ]; then
             INIT_DIR=`pwd`
         elif [ "$#" = "1" ]; then
             INIT_DIR="${1}"
@@ -124,6 +129,18 @@ case "${CMD}" in
         fi
         ZEDO__setSandboxFromBase "${ZEDO__config_basedir}"
         zedo_${CMD}
+        ;;
+    always|ifchange|ifcreate)
+        ZEDO__setSandboxFromBase "${ZEDO__config_basedir}"
+        ZEDO__errorAccum=""
+        for f in "$@"; do
+            ZEDO__setTarget "$f"
+            zedo_${CMD}
+            ZEDO__unsetTarget
+        done
+        if [ -n "$ZEDO__errorAccum" ]; then
+            ZEDO__die "Some targets failed to build.${ZEDO__errorAccum}"
+        fi
         ;;
     # NOTE commands that might call zedo recursively must set&export sandbox
     *) ZEDO__programmerError "Unimplemented command '${CMD}'" ;;

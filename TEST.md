@@ -31,8 +31,9 @@ Boring stuff:
 
 Configuration:
 
-  * if an argument is given to init, put the .zedo dir inside that argument;
-    otherwise, use the present working directory
+  * if `--zedo-dir` is set, , put the .zedo dir inside that argument…
+  * or, if an argument is given to init, put the .zedo dir inside that argument…
+  * otherwise, use the present working directory
 
 Postconditions:
 
@@ -60,3 +61,23 @@ Postconditions:
 
   * the status table should not have a row under key = 'root_pid'
   * all configuration files in the workDir should be left unchanged
+
+## zedo always
+
+Check under conditions:
+  * target is a source file
+  * target is an output file with a specific do-script
+  * target is an output file with a default do-script with a smaller extension and up a directory
+  * target is a hidden file
+  * target has two dots in its extension
+
+Preconditions:
+  * a zedo sandbox must be found
+
+Postconditions:
+  * all scripts searched for should be in the `file` table
+  * all scripts searched for should be a dependecy for the target
+  * all scripts that exist should have their hash recorded
+  * the output file should have its hash recorded
+  * all scripts, output files, and source files shuold be categorized correctly
+  * error out if neither source nor do-script was found
