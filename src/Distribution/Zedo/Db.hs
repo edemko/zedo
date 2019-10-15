@@ -30,7 +30,7 @@ createDb = Db $ do
     liftIO $ execute_ conn depTable
     where
     fileTable =
-        "CREATE TABLE file\n\
+        "CREATE TABLE IF NOT EXISTS file\n\
         \    ( type              TEXT NOT NULL\n\
         \    , path              TEXT PRIMARY KEY\n\
         \    , last_known_hash   TEXT\n\
@@ -41,7 +41,7 @@ createDb = Db $ do
         \    )\n\
         \);"
     depTable =
-        "CREATE TABLE dep\n\
+        "CREATE TABLE IF NOT EXISTS dep\n\
         \    ( parent    TEXT NOT NULL REFERENCES file(path)\n\
         \    , child     TEXT NOT NULL REFERENCES file(path)\n\
         \    , type      TEXT NOT NULL\n\
