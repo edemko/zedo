@@ -40,29 +40,31 @@ zedo_always ::
     ) => m ()
 zedo_always = do
     target <- asks target
+    -- TODO set status as running; if status is running, then spinlock...?
+
     ScriptSpec{..} <- findScript target
     targetType <- case scriptPath of
         Just _ -> pure Artifact
         Nothing -> doesSourceExist target >>= \case
             True -> pure Source
             False -> error "TODO create a decent error here"
-    invoker <- asks invoker
 
+    invoker <- asks invoker
     runDbT $ do
         recordFile targetType target
-        case invoker of
-            Nothing -> pure ()
-            Just parent -> recordDependency Always parent (Right target)
-        forM_ notScriptPaths $ \script -> do
+        resetDependencies target
+        forM_ invoker $ \parent ->
+            recordDependency Always parent (Right target)
+        forM_ notScriptPaths $ \script ->
             recordDependency IfCreate target (Left script)
-        case scriptPath of
-            Nothing -> pure ()
-            Just script -> recordDependency IfChange target (Left script)
+        forM_ scriptPath $ \script ->
+            recordDependency IfChange target (Left script)
 
-    -- if source file:
-    --      copy source to build dir
-    -- else target file
-    --      run script
+    case targetType of
+        Source -> error "TODO unimplemented"
+            -- copy source to build dir
+        Artifact -> error "TODO unimplemented"
+            -- run script
     -- record status
     -- record hash
 

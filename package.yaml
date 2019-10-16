@@ -26,6 +26,7 @@ dependencies:
 - mtl >= 2.2 && < 3
 - optparse-applicative >= 0.15 && < 1
 - sqlite-simple >= 0.4.15 && < 0.5
+- text >= 1 && < 2
 
 default-extensions:
 - OverloadedStrings
