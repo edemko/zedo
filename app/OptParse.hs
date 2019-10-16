@@ -110,6 +110,10 @@ commandParse =
             (info (initOpts <**> helper)
                 (progDesc "Create a zedo project at DIR. Does nothing if it's already initialized.")
             )
+        <> command "reset"
+            (info (resetOpts <**> helper)
+                (progDesc "Clean out the database in case of corruption.")
+            )
         <> command "always"
             (info (alwaysOpts <**> helper)
                 (progDesc $ unwords
@@ -142,6 +146,7 @@ commandParse =
         (   argument (Just <$> str) (metavar "DIR")
         <|> pure Nothing
         )
+    resetOpts = pure Reset
     alwaysOpts = Always <$> targetsParse
     ifchangeOpts = Always <$> targetsParse
     ifcreateOpts = Always <$> targetsParse

@@ -26,6 +26,12 @@ zedo_init = do
     -- TODO create default configuration files
     runDbT createDb
 
+zedo_reset ::
+    ( MonadReader TreeInvariants m
+    , MonadIO m
+    ) => m ()
+zedo_reset = runDbT resetDb
+
 zedo_always ::
     ( MonadReader TreeInvariants m
     , MonadReader InvocationInvariants m

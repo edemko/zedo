@@ -2,6 +2,7 @@ module Distribution.Zedo.Db
     ( Db
     , runDbT
     , createDb
+    , resetDb
     , recordFile
     , recordDependency
     ) where
@@ -56,6 +57,16 @@ createDb = Db $ do
         \    )\n\
         \);\n\
         \"
+
+resetDb :: Db ()
+resetDb = Db $ do
+    conn <- ask
+    liftIO $ execute_ conn cleanDep
+    liftIO $ execute_ conn cleanFile
+    where
+    cleanFile = "DELETE FROM file;"
+    cleanDep = "DELETE FROM dep;"
+
 
 recordFile :: TargetType -> TargetPath -> Db ()
 recordFile = undefined
