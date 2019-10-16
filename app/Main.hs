@@ -17,6 +17,8 @@ import System.IO
 import System.Environment
 import System.Directory
 import System.Exit
+import Control.Monad.Catch
+import Control.Exception (AsyncException)
 
 -- data types
 import System.FilePath
@@ -25,6 +27,7 @@ import System.FilePath
 import Distribution.Zedo.Data
 import Distribution.Zedo.AgreeOn
 import OptParse
+import Distribution.Zedo.Db (withTreeLock, withAtomLock)
 import Distribution.Zedo.Commands
 import Distribution.Zedo.ReaderStackHack
 
@@ -44,10 +47,20 @@ main = do
                 args <- getChildArguments tree
                 pure (tree, theCommand args)
         flip runReaderT tree $ do
-            (liftIO . print) command
             (liftIO . print) =<< asks baseDir
+            (liftIO . print) command
+            -- FIXME withTreeLock
             case command of
-                Init _ -> zedo_init
+                InitCmd _ -> zedo_init
+                ResetCmd -> zedo_reset
+                AlwaysCmd atoms -> do
+                    errs <- forM atoms $ \atomSpec -> nonAsyncExnsToMaybe $ do
+                        atom <- findTarget atomSpec
+                        flip runReaderT atom $
+                            withAtomLock () zedo_always
+                    case catMaybes errs of
+                        [] -> liftIO exitSuccess
+                        _ -> liftIO exitFailure
                 _ -> error "TODO unimplemented"
 
 getInvocationInvariants :: MonadIO m => m InvocationInvariants
@@ -68,8 +81,8 @@ getZedoEnv var = liftIO $ lookupEnv var <&> \case
 setupTreeInvariants :: MonadIO m => Arguments -> m TreeInvariants
 setupTreeInvariants Args{..} = do
     baseDir <- case theCommand of
-        Init Nothing -> liftIO getCurrentDirectory
-        Init (Just dir) -> pure dir
+        InitCmd Nothing -> liftIO getCurrentDirectory
+        InitCmd (Just dir) -> pure dir
         _ -> do
             baseDir <- case zedoDir of
                 Nothing -> findBaseDir
@@ -96,5 +109,15 @@ loadTreeInvariants = do
         artifactDir = baseDir </> "build" -- TODO
         scriptDir = baseDir </> "do" -- TODO
     pure TI{..}
+
+
+nonAsyncExnsToMaybe :: MonadCatch m => m a -> m (Maybe SomeException)
+nonAsyncExnsToMaybe action = action' `catches` handlers
+    where
+    action' = action >> pure Nothing
+    handlers =
+        [ Handler $ \(exn :: AsyncException) -> throwM exn
+        , Handler $ \(exn :: SomeException) -> pure (Just exn)
+        ]
 
 putErrLn = hPutStrLn stderr

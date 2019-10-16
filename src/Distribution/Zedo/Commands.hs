@@ -1,5 +1,6 @@
 module Distribution.Zedo.Commands
     ( zedo_init
+    , zedo_reset
     , zedo_always
     ) where
 
@@ -22,8 +23,6 @@ zedo_init ::
     ) => m ()
 zedo_init = do
     liftIO . createDirectoryIfMissing False =<< asks workDir
-    -- FIXME do nothing if nothing need be done
-    -- TODO create default configuration files
     runDbT createDb
 
 zedo_reset ::
@@ -40,7 +39,6 @@ zedo_always ::
     ) => m ()
 zedo_always = do
     target <- asks target
-    -- TODO set status as running; if status is running, then spinlock...?
 
     ScriptSpec{..} <- findScript target
     targetType <- case scriptPath of

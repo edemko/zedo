@@ -3,6 +3,7 @@ module Distribution.Zedo.AgreeOn where
 import Data.Maybe
 
 import Data.Functor
+import Control.Monad.Reader
 import Control.Monad.IO.Class
 
 import System.FilePath
@@ -44,6 +45,16 @@ checkBaseDir candidate = liftIO $ do
     doesDirectoryExist (result </> ".zedo") <&> \case
         True -> Just result
         False -> Nothing
+
+findTarget :: (MonadReader InvocationInvariants m, MonadIO m)
+                => FilePath -> m AtomInvariants
+findTarget = \case
+    '/':abspath -> pure $ build abspath
+    relpath -> asks invoker <&> \case
+        Just (TargetPath parent) -> build $ parent </> relpath
+        Nothing -> build relpath
+    where
+    build = AI . TargetPath . normalise
 
 candidateScripts :: TargetPath -> [ScriptSpec]
 candidateScripts (TargetPath path) =

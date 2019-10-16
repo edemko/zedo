@@ -22,6 +22,7 @@ description:         Please see the README on GitHub at <https://github.com/Zank
 dependencies:
 - base >= 4.7 && < 5
 - directory >= 1.3 && < 2
+- exceptions >= 0.10 && < 1
 - filepath > 1.4 && < 1.5
 - mtl >= 2.2 && < 3
 - optparse-applicative >= 0.15 && < 1
@@ -29,6 +30,7 @@ dependencies:
 - text >= 1 && < 2
 
 default-extensions:
+- ScopedTypeVariables
 - OverloadedStrings
 - LambdaCase
 - RecordWildCards

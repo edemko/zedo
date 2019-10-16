@@ -43,14 +43,19 @@ data Arguments = Args
     }
     deriving (Show)
 data Command
-    = Init (Maybe FilePath)
-    | Reset
-    | Always [String]
-    | IfCreate [String]
-    | IfChange [String]
-    | Phony
-    -- | Touch [String] -- uh... what exactly is touch supposed to do?
-    -- Log?
+    = InitCmd (Maybe FilePath)
+    | ResetCmd
+    | AlwaysCmd [String]
+    | IfCreateCmd [String]
+    | IfChangeCmd [String]
+    | PhonyCmd
+    -- | TouchCmd [String] -- uh... what exactly is touch supposed to do?
+    -- MkdirCmd make temp directory
+    {- status commands:
+        look at a log
+        see what files the db knows about
+        more...
+    -}
     deriving (Show)
 
 rootOptions :: Parser Arguments
@@ -140,16 +145,16 @@ commandParse =
             )
         )
     <|>
-    (Always <$> targetsParse)
+    (AlwaysCmd <$> targetsParse)
     where
-    initOpts = Init <$>
+    initOpts = InitCmd <$>
         (   argument (Just <$> str) (metavar "DIR")
         <|> pure Nothing
         )
-    resetOpts = pure Reset
-    alwaysOpts = Always <$> targetsParse
-    ifchangeOpts = Always <$> targetsParse
-    ifcreateOpts = Always <$> targetsParse
+    resetOpts = pure ResetCmd
+    alwaysOpts = AlwaysCmd <$> targetsParse
+    ifchangeOpts = AlwaysCmd <$> targetsParse
+    ifcreateOpts = AlwaysCmd <$> targetsParse
 
 targetsParse :: Parser [String]
 targetsParse = many $ argument str ( metavar "TARGETS..." )

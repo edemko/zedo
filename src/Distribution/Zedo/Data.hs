@@ -1,5 +1,8 @@
 module Distribution.Zedo.Data where
 
+import Control.Exception (Exception)
+import Data.Typeable (Typeable)
+
 
 newtype TargetPath = TargetPath { unTargetPath :: FilePath }
     deriving (Show)
@@ -45,3 +48,10 @@ data InvocationInvariants = II
 data AtomInvariants = AI
     { target :: TargetPath
     }
+
+
+newtype ZedoFailure = ZedoFailure TargetPath
+    deriving (Typeable)
+instance Show ZedoFailure where
+    show (ZedoFailure (TargetPath path)) = "ZedoFailure " ++ show path
+instance Exception ZedoFailure

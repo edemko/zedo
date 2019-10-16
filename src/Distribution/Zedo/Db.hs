@@ -1,6 +1,8 @@
 module Distribution.Zedo.Db
     ( Db
     , runDbT
+    , withTreeLock
+    , withAtomLock
     , createDb
     , resetDb
     , recordFile
@@ -8,15 +10,88 @@ module Distribution.Zedo.Db
     , resetDependencies
     ) where
 
+import Data.Maybe
+
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.IO.Class
+import Control.Monad.Catch
+import Control.Concurrent
 
 import qualified Data.Text as T
 import Database.SQLite.Simple
 import Database.SQLite.Simple.ToField
+import Database.SQLite.Simple.FromField
+import qualified Database.SQLite.Simple.Ok as SQL
 
 import Distribution.Zedo.Data
+
+
+withTreeLock :: (MonadReader TreeInvariants m, MonadIO m)
+                    => m a -> m a
+withTreeLock action = do
+    -- TODO check that no other zedo process is running and put this pid in
+    -- TODO if it is running, throw an error
+    -- TODO otherwise, bracket the following with a release of the lock:
+    runDbT $ Db $ do
+        conn <- ask
+        liftIO $ execute_ conn "UPDATE file SET status = NULL;"
+    action
+
+withAtomLock :: ( MonadReader TreeInvariants m
+                , MonadReader AtomInvariants m
+                , MonadCatch m
+                , MonadIO m)
+                => a -> m a -> m a
+withAtomLock def action = do
+    TargetPath targetPath <- asks target
+    status <- runDbT $ do
+        status <- getStatus targetPath
+        when (isNothing status) $ setStatus Running targetPath
+        -- NOTE after this point, if any statuses get left as 'RUN', a later invocation tree will clear out all the statuses anyway
+        pure status
+    dispatch status bracketed
+    where
+    samplesPerSecond = 10
+    dispatch Nothing action = action
+    dispatch (Just Running) _ = spinlock
+    dispatch (Just Ok) _ = pure def
+    dispatch (Just Error) _ = do
+        target <- asks target
+        throwM $ ZedoFailure target
+    bracketed = do
+        TargetPath targetPath <- asks target
+        let body = do
+                a <- action
+                runDbT $ setStatus Ok targetPath
+                pure a
+            handler = runDbT $ setStatus Error targetPath
+        body `onException` handler
+
+    getStatus targetPath = Db $ do
+        conn <- ask
+        [Only status] <- liftIO $ queryNamed conn
+            "SELECT status FROM file WHERE path = :targetPath;"
+            [":targetPath" := targetPath]
+        pure status
+    setStatus status targetPath = Db $ do
+        conn <- ask
+        liftIO $ executeNamed conn
+            "UPDATE file SET status = :newStatus WHERE path = :targetPath;"
+            [":targetPath" := targetPath, ":newStatus" := status]
+    spinlock = do
+        liftIO $ threadDelay (1000000 `div` samplesPerSecond)
+        TargetPath targetPath <- asks target
+        status <- runDbT (getStatus targetPath)
+        dispatch status $ withAtomLock def action
+
+data TargetStatus
+    = Ok
+    | Error
+    | Running
+
+
+
 
 
 newtype Db a = Db { unDb :: ReaderT Connection IO a }
@@ -30,6 +105,10 @@ runDbT action = do
             execute_ conn "PRAGMA foreign_keys=1;"
             flip runReaderT conn $
                 unDb action
+
+
+
+
 
 createDb :: Db ()
 createDb = Db $ do
@@ -100,6 +179,9 @@ resetDependencies (TargetPath targetPath) = Db $ do
         [":targetPath" := targetPath]
 
 
+
+
+
 instance ToField TargetType where
     toField Source = SQLText "SOURCE"
     toField Artifact = SQLText "ARTIFACT"
@@ -114,3 +196,13 @@ instance ToField DependencyType where
     toField Always = SQLText "ALWAYS"
     toField IfChange = SQLText "CHANGE"
     toField IfCreate = SQLText "CREATE"
+
+instance ToField TargetStatus where
+    toField Ok = SQLText "OK"
+    toField Error = SQLText "ERR"
+    toField Running = SQLText "RUN"
+instance FromField TargetStatus where
+    fromField field = case fieldData field of
+        SQLText "OK"  -> SQL.Ok Ok
+        SQLText "ERR" -> SQL.Ok Error
+        SQLText "RUN" -> SQL.Ok Running
