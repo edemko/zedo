@@ -19,6 +19,7 @@ import System.Directory
 import System.Exit
 
 -- data types
+import System.FilePath
 
 -- internal dependencies
 import Distribution.Zedo.Data
@@ -35,8 +36,9 @@ main = do
         (tree, command) <- asks isRoot >>= \case
             True -> do
                 args <- getRootArguments
-                (tree, command) <- setupTreeInvariants args
-                pure (tree, command)
+                tree <- setupTreeInvariants args
+                -- TODO export tree invariants
+                pure (tree, theCommand args)
             False -> do
                 tree <- loadTreeInvariants
                 args <- getChildArguments tree
@@ -63,26 +65,22 @@ getZedoEnv var = liftIO $ lookupEnv var <&> \case
     Just "" -> Nothing
     x -> x
 
-setupTreeInvariants :: MonadIO m => Arguments -> m (TreeInvariants, Command)
-setupTreeInvariants args = do
-    tree <- case args of
-        Args{theCommand = Init dir, verbosity} -> do
-            baseDir <- case dir of
-                Nothing -> liftIO getCurrentDirectory
-                Just x -> pure x
-            let workDir = findWorkDir baseDir
-                dbFile = findDbFile baseDir
-            pure TI{..}
-        Args{verbosity, zedoDir} -> do
+setupTreeInvariants :: MonadIO m => Arguments -> m TreeInvariants
+setupTreeInvariants Args{..} = do
+    baseDir <- case theCommand of
+        Init Nothing -> liftIO getCurrentDirectory
+        Init (Just dir) -> pure dir
+        _ -> do
             baseDir <- case zedoDir of
                 Nothing -> findBaseDir
                 Just zedoDir -> checkBaseDir zedoDir
-            baseDir <- maybe noBaseDirErr pure baseDir
-            let workDir = findWorkDir baseDir
-                dbFile = findDbFile baseDir
-            pure TI{..}
-    -- TODO export tree invariants
-    pure (tree, theCommand args)
+            maybe noBaseDirErr pure baseDir
+    let workDir = findWorkDir baseDir
+        dbFile = findDbFile baseDir
+        sourceDir = baseDir </> "src" -- TODO
+        artifactDir = baseDir </> "build" -- TODO
+        scriptDir = baseDir </> "do" -- TODO
+    pure TI{..}
     where
     noBaseDirErr = liftIO $ do
         putErrLn "Not a zedo project (or any of the parent directories)"
@@ -94,6 +92,9 @@ loadTreeInvariants = do
     let isRoot = False
         workDir = findWorkDir baseDir
         dbFile = findDbFile baseDir
+        sourceDir = baseDir </> "src" -- TODO
+        artifactDir = baseDir </> "build" -- TODO
+        scriptDir = baseDir </> "do" -- TODO
     pure TI{..}
 
 putErrLn = hPutStrLn stderr

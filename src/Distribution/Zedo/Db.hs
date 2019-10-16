@@ -61,7 +61,7 @@ recordFile :: TargetType -> TargetPath -> Db ()
 recordFile = undefined
     -- TODO if status is not null, fail if the type is unequal
 
-recordDependency :: DependencyType -> TargetPath -> TargetPath -> Db ()
+recordDependency :: DependencyType -> TargetPath -> (Either ScriptPath TargetPath) -> Db ()
 recordDependency depType target dependency = do
     undefined
 

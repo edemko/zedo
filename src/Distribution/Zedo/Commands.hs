@@ -8,6 +8,7 @@ import Control.Monad.Reader
 import Control.Monad.IO.Class
 
 import System.Directory
+import System.FilePath
 
 import Distribution.Zedo.AgreeOn
 import Distribution.Zedo.Data
@@ -33,25 +34,48 @@ zedo_always ::
     ) => m ()
 zedo_always = do
     target <- asks target
-    script <- findScript target
+    ScriptSpec{..} <- findScript target
+    targetType <- case scriptPath of
+        Just _ -> pure Artifact
+        Nothing -> doesSourceExist target >>= \case
+            True -> pure Source
+            False -> error "TODO create a decent error here"
     invoker <- asks invoker
+
     runDbT $ do
-        -- record this file
+        recordFile targetType target
         case invoker of
             Nothing -> pure ()
-            Just parent -> recordDependency Always parent target
-        -- record dependencies of this file on scripts
+            Just parent -> recordDependency Always parent (Right target)
+        forM_ notScriptPaths $ \script -> do
+            recordDependency IfCreate target (Left script)
+        case scriptPath of
+            Nothing -> pure ()
+            Just script -> recordDependency IfChange target (Left script)
+
     -- if source file:
     --      copy source to build dir
     -- else target file
-    --      runs script
+    --      run script
     -- record status
     -- record hash
 
-findScript :: MonadIO m => TargetPath -> m ScriptSpec
-findScript target = liftIO $ go (candidateScripts target)
+
+findScript :: (MonadReader TreeInvariants m, MonadIO m) => TargetPath -> m ScriptSpec
+findScript target = go (candidateScripts target)
     where
     go [] = error "programmer error"
     go (script@ScriptSpec{..}:rest) = do
-        exists <- maybe (pure False) (doesFileExist . unScriptPath) scriptPath
+        exists <- maybe (pure False) doesScriptExist scriptPath
         if exists then pure script else go rest
+
+
+doesSourceExist :: (MonadReader TreeInvariants m, MonadIO m) => TargetPath -> m Bool
+doesSourceExist (TargetPath sourcePath) = do
+    sourceDir <- asks sourceDir
+    liftIO $ doesFileExist (sourceDir </> sourcePath)
+
+doesScriptExist :: (MonadReader TreeInvariants m, MonadIO m) => ScriptPath -> m Bool
+doesScriptExist (ScriptPath scriptPath) = do
+    scriptDir <- asks scriptDir
+    liftIO $ doesFileExist (scriptDir </> scriptPath)
