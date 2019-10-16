@@ -1,10 +1,14 @@
 module Distribution.Zedo.AgreeOn where
 
+import Data.Maybe
+
 import Data.Functor
 import Control.Monad.IO.Class
 
 import System.FilePath
 import System.Directory
+
+import Distribution.Zedo.Data
 
 
 invokerVar = "ZEDO__INVOKER"
@@ -40,6 +44,38 @@ checkBaseDir candidate = liftIO $ do
     doesDirectoryExist (result </> ".zedo") <&> \case
         True -> Just result
         False -> Nothing
+
+candidateScripts :: TargetPath -> [ScriptSpec]
+candidateScripts (TargetPath path) =
+    let specificScript = (path <.> "do", Nothing)
+        defaultScripts = [ (dir </> "default" <.> ext <.> "do", Just ext)
+                         | dir <- genDirs $ takeDirectory path
+                         , ext <- genExts $ takeFileName path
+                         ]
+    in genSpecs [] $ specificScript : defaultScripts
+    where
+    genExts "" = []
+    genExts filename =
+        let preExts = dropWhile (== '.') filename
+            (_, exts) = break (== '.') preExts
+        in case exts of
+            '.':'.':exts -> genExts exts
+            '.':exts -> exts : genExts exts
+            _ -> []
+    genDirs dir0 = takeUntilFixedBy equalFilePath $ iterate takeDirectory dir0
+    genSpecs :: [ScriptPath] -> [(FilePath, Maybe String)] -> [ScriptSpec]
+    genSpecs seen [] = ScriptSpec
+        { scriptPath = Nothing
+        , scriptExtension = Nothing
+        , notScriptPaths = seen
+        } : []
+    genSpecs seen ((prePath, ext) : rest) =
+        let path = ScriptPath $ normalise prePath
+        in ScriptSpec
+            { scriptPath = Just path
+            , scriptExtension = ext
+            , notScriptPaths = seen
+            } : genSpecs (seen ++ [path]) rest
 
 
 

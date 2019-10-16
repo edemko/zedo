@@ -33,6 +33,7 @@ default-extensions:
 - RecordWildCards
 - NamedFieldPuns
 - FlexibleContexts
+- GeneralizedNewtypeDeriving
 
 # extra-extensions:
 # - FlexibleInstances

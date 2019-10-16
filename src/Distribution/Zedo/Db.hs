@@ -2,6 +2,8 @@ module Distribution.Zedo.Db
     ( Db
     , runDbT
     , createDb
+    , recordFile
+    , recordDependency
     ) where
 
 import Control.Monad
@@ -9,10 +11,13 @@ import Control.Monad.Reader
 import Control.Monad.IO.Class
 
 import Database.SQLite.Simple
+import Database.SQLite.Simple.ToField
+
 import Distribution.Zedo.Data
 
 
 newtype Db a = Db { unDb :: ReaderT Connection IO a }
+    deriving (Functor, Applicative, Monad)
 
 runDbT :: (MonadReader TreeInvariants m, MonadIO m) => Db a -> m a
 runDbT action = do
@@ -51,3 +56,16 @@ createDb = Db $ do
         \    )\n\
         \);\n\
         \"
+
+recordFile :: TargetType -> TargetPath -> Db ()
+recordFile = undefined
+    -- TODO if status is not null, fail if the type is unequal
+
+recordDependency :: DependencyType -> TargetPath -> TargetPath -> Db ()
+recordDependency depType target dependency = do
+    undefined
+
+instance ToField DependencyType where
+    toField Always = SQLText "ALWAYS"
+    toField IfChange = SQLText "CHANGE"
+    toField IfCreate = SQLText "CREATE"

@@ -16,7 +16,7 @@ import Options.Applicative
 import Data.Version
 
 import Paths_zedo
-import Distribution.Zedo.Data
+import Distribution.Zedo.Data (TreeInvariants(..))
 
 
 getRootArguments :: MonadIO m => m Arguments

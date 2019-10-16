@@ -24,7 +24,7 @@ import System.Exit
 import Distribution.Zedo.Data
 import Distribution.Zedo.AgreeOn
 import OptParse
-import Distribution.Zedo.Init
+import Distribution.Zedo.Commands
 import Distribution.Zedo.ReaderStackHack
 
 

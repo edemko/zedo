@@ -1,7 +1,10 @@
 module Distribution.Zedo.Data where
 
 
-newtype TargetPath = TargetPath FilePath
+newtype TargetPath = TargetPath { unTargetPath :: FilePath }
+    deriving (Show)
+newtype ScriptPath = ScriptPath { unScriptPath :: FilePath }
+    deriving (Show)
 
 data TargetType
     = Source
@@ -10,9 +13,15 @@ data TargetType
     | External
     | Pattern
 
+data DependencyType
+    = Always
+    | IfChange
+    | IfCreate
+
 data ScriptSpec = ScriptSpec
-    { scriptPath :: FilePath -- relative to script directory...?
+    { scriptPath :: Maybe ScriptPath
     , scriptExtension :: Maybe String
+    , notScriptPaths :: [ScriptPath]
     }
 
 
