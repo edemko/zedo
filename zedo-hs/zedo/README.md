@@ -66,6 +66,24 @@ This is a detailed list because it's also serving as documentation about the alg
         - [ ] call the build procedure for each
         - [ ] join all the sub-processes
     - [x] flag to also print the target file, each target is on a new line
+- [ ] zedo ifchange
+    - [ ] check for any dependency updates
+        - [ ] if-change dependencies
+            - [x] check the file hash against current hash
+            - [x] recurse for all children
+            - [ ] no previous hash
+                - [x] normally indicates a change
+                - [ ] phony targets are unchanged
+            - [x] unknown targets are changed
+            - [x] if this run already has a status use it
+            - [x] if no change, save an Ok status so later run can prune this branch
+        - [x] if-create dependencies
+            - [x] test if the file exists
+            - [x] NOTE: an if-create dependency on a phony target doesn't make sense
+    - [x] call out to build when needed
+- [ ] zedo ifcreate
+    - [ ] save the dependency to the db
+    - [ ] ??? check if the file already exists b/c that's an indication of a do-script error
 - META: other zedo commands
 - [ ] zedo {phony,volatile,also}
     - [x] phony: set parent's phony flag in db

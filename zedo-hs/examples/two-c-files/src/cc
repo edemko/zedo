@@ -1,0 +1,5 @@
+ofile=$1
+cfile=$2
+
+gcc -c "${cfile}" -o "${ofile}"
+

@@ -64,7 +64,7 @@ In the subsequent documentation, we will refer to "invocation" and "invocation t
 
 In addition to invocation trees and and invocations, there is an additional level of execution which relates to when `zedo` is called with many arguments.
 In particular `zedo <condition> <a> <b...>` is functionally equivalent to `zedo <condition> <a>; zedo <condition> <b...>`, where `<condition>` is one of `always`, `ifchange`, or `ifcreate`.
-Obviously the former incurs less overhead by starting fewer OS processes.
+Obviously batching arguments incurs less overhead by starting fewer OS processes.
 The equivalency does mean that we can segregate different regions of independent execution within an invocation into what I call "atoms".
 
 In fact, the atom-invocation equivalences mean that the parent-child relationships in the invocation tree are not between invocations.
@@ -85,4 +85,35 @@ If we could pass a `--parent` argument to `zedo`, that would be a very functiona
 Therefore, we have to resort to environment variables to inform a newly-invoked process of its position in the tree.
 The compromise it not as bad as it seems: we would need to determine an invocation's location in the tree anyway in order to record dependency information.
 We just have to be careful to pick up an atomic invariant stored in an agreed-upon environment variable and move it (not copy) it to an invocation invariant, and to always set up that same environment variable with new parentage data before there is the potential to creating a new invocation.
+
+
+## State of Development
+
+I'm not sure what all this code is.
+I recently worked on `zedo-hs`.
+I believe `zedo-sh` was a quick test in shell so I knew I had the ideas correct.
+However, there's also a stack package at the root of this repo that seems cleaner than `zedo-hs`, and may be my newest attempt.
+
+
+### In `zedo-hs`
+
+The to-do list is in `zedo-hs/README.md`, and the code is kept in a `zedo-hs/zedo` (which is, admittedly, a lot of `zedo` in the filepath).
+
+I'm using stack for development, so building is `cd zedo-hs; stack build`.
+It can also be useful to use `stack install` to ensure `zedo` is on the path (on my machine that puts it into `~/.local/bin`).
+I've got a small project with a diamond(-ish) dependency graph in 
+In Sqlite, a helpful debugging query is:
+
+```
+select deptype, child.targetName as child, parent.targetName as parent
+from dependency
+    join target as parent on (parent_id == parent.id)
+    join target as child on (child_id = child.id);
+```
+
+### Other Stuff
+
+There's some more readme-related info and more test scenarios in zedo-sh which should be merged as zedo matures.
+There may be a reason to keep a shell version of zedo around just for portability.
+The cost would be trying to keep it synchronized with the Haskell version, but it may be possible to make functionally-compatible simplifications instead.
 
