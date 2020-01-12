@@ -16,29 +16,26 @@ import System.Process.Typed
 import qualified Data.ByteString.Lazy as LBS
 import qualified Crypto.Hash as Hash
 
-import System.IO -- DEBUG
-putErrLn = hPutStrLn stderr -- DEBUG
-
 
 changed :: TopDirs -> FilePath -> IO Bool
 changed topDirs targetName = withDb topDirs (\db -> targetInfo db targetName) >>= \case
     Nothing -> do
-        putErrLn $ show targetName ++ " changed: unknown target"
+        -- putErrLn $ show targetName ++ " changed: unknown target"
         pure True
     Just (_, _, Right status) -> case status of
         Locked -> do
-            putErrLn $ show targetName ++ " changed: Locked status"
+            -- putErrLn $ show targetName ++ " changed: Locked status"
             pure True
         Fail _ -> do
-            putErrLn $ show targetName ++ " changed: Fail status"
+            -- putErrLn $ show targetName ++ " changed: Fail status"
             pure True
         Ok _ -> do
-            putErrLn $ show targetName ++ " not changed: Ok status"
+            -- putErrLn $ show targetName ++ " not changed: Ok status"
             pure False
         -- Acquired -- should never happen
         -- Unknown -- should never happen
     Just (id, _, Left Nothing) -> do
-        putErrLn $ show targetName ++ " changed: no previous hash"
+        -- putErrLn $ show targetName ++ " changed: no previous hash"
         pure True
     Just (id, location, Left (Just lastHash)) ->
         let file = case location of
@@ -47,11 +44,11 @@ changed topDirs targetName = withDb topDirs (\db -> targetInfo db targetName) >>
                     Script -> doDir topDirs </> targetName
         in doesFileExist file >>= \case
             False -> do
-                putErrLn $ show targetName ++ " changed: output file " ++ show file ++ " does not exist"
+                -- putErrLn $ show targetName ++ " changed: output file " ++ show file ++ " does not exist"
                 pure True
             True -> (lastHash /=) <$> hashFile file >>= \case
                 True -> do
-                    putErrLn $ show targetName ++ " changed: hash differs"
+                    -- putErrLn $ show targetName ++ " changed: hash differs"
                     pure True
                 False -> do
                     deps <- withDb topDirs $ \db -> peekDependencies db targetName
@@ -59,11 +56,11 @@ changed topDirs targetName = withDb topDirs (\db -> targetInfo db targetName) >>
                         Change -> changed topDirs childName
                         Create -> created topDirs childName
                     let anyChildChange = or childrenChanged
-                    if anyChildChange
-                        then putErrLn $ show targetName ++ " changed: children changed"
-                        else putErrLn $ show targetName ++ " not changed: hash matches and children unchanged"
+                    -- if anyChildChange
+                    --     then putErrLn $ show targetName ++ " changed: children changed"
+                    --     else putErrLn $ show targetName ++ " not changed: hash matches and children unchanged"
                     unless anyChildChange $ do
-                        putErrLn $ "saving Ok state for " ++ show targetName
+                        -- putErrLn $ "saving Ok state for " ++ show targetName
                         withDb topDirs $ \db ->
                             setStatus db id (Ok (Just lastHash))
                     pure $ anyChildChange
@@ -76,9 +73,9 @@ created topDirs targetName = do
         Just (_, Source, Left _) -> doesFileExist $ srcDir topDirs </> targetName
         Just (_, Output, Left _) -> doesFileExist $ outDir topDirs </> targetName
         Just (_, Script, Left _) -> doesFileExist $ doDir topDirs </> targetName
-    if r
-    then putErrLn $ show targetName ++ " created"
-    else putErrLn $ show targetName ++ " not created"
+    -- if r
+    -- then putErrLn $ show targetName ++ " created"
+    -- else putErrLn $ show targetName ++ " not created"
     pure r
 
 
