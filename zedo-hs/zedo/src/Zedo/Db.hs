@@ -7,6 +7,8 @@ import System.Posix.Process
 import Control.Exception
 import System.Exit
 import Database.SQLite.Simple
+import Database.SQLite.Simple.FromField
+import qualified Data.Text as T
 
 
 newtype TargetId = TId Int
@@ -25,7 +27,7 @@ statusToExitCode (Fail ec) = ec
 
 data DepType = Change | Create
     deriving(Read, Show, Eq)
-data TargetLoc = Target | Script
+data TargetLoc = Source | Output | Script
     deriving(Read, Show, Eq)
 
 
@@ -36,7 +38,7 @@ initDb db = do
                 \, location   TEXT NOT NULL\n\
                 \, targetName TEXT NOT NULL UNIQUE\n\
                 \, hash       TEXT\n\
-                \, CONSTRAINT enum_location CHECK (location IN ('Target', 'Script'))\n\
+                \, CONSTRAINT enum_location CHECK (location IN ('Source', 'Output', 'Script'))\n\
                 \);"
     execute_ db "CREATE TABLE targetRun\n\
                 \( id         INTEGER NOT NULL UNIQUE\n\
@@ -63,13 +65,13 @@ startRun :: Connection -> IO ()
 startRun db = do
     execute_ db "DELETE FROM targetRun;"
 
-startTargetRun :: Connection -> String -> IO (TargetId, TargetStatus) -- FIXME string is targetname, int is primary key
-startTargetRun db targetName = do
+startTargetRun :: Connection -> (TargetLoc, String) -> IO (TargetId, TargetStatus) -- FIXME string is targetname, int is primary key
+startTargetRun db (location, targetName) = do
     r <- queryNamed db "SELECT target.id, status, exitCode, hash\n\
                        \FROM target\n\
                        \    LEFT JOIN targetRun ON (target.id = targetRun.id)\n\
-                       \WHERE targetName = :name AND location = 'Target';"
-        [ ":name" := targetName ]
+                       \WHERE targetName = :name AND location = :location;"
+        [ ":name" := targetName, ":location" := show location ]
     case r of
         [(id, Just status, ec, hash)] -> pure (TId id, xformStatus status ec hash)
         [(id, Nothing, _, _)] -> do
@@ -79,13 +81,27 @@ startTargetRun db targetName = do
                 [ ":id" := id ]
             pure (TId id, Acquired)
         [] -> do
-            executeNamed db "INSERT INTO target (targetName, location) VALUES (:name, 'Target');"
-                [ ":name" := targetName ]
+            executeNamed db "INSERT INTO target (targetName, location) VALUES (:name, :location);"
+                [ ":name" := targetName, ":location" := show location ]
             [Only id] <- queryNamed db "SELECT id FROM target WHERE targetName = :name;"
                 [ ":name" := targetName ]
             executeNamed db "INSERT INTO targetRun (id, status) VALUES (:id, 'lock');"
                 [ ":id" := id ]
             pure (TId id, Acquired)
+
+targetInfo :: Connection -> String -> IO (Maybe (TargetId, TargetLoc, Either (Maybe Hash) TargetStatus))
+targetInfo db targetName = do
+    r <- queryNamed db "SELECT target.id, location, hash, status, exitCode\n\
+                       \FROM target\n\
+                       \    LEFT JOIN targetRun ON (targetRun.id = target.id)\n\
+                       \WHERE targetName = :targetName;"
+        [ ":targetName" := targetName ]
+    pure $ case r of
+        [] -> Nothing
+        [(id, loc, hash, Nothing, _)] ->
+            Just (TId id, read loc, Left $ Hash <$> hash)
+        [(id, loc, hash, Just status, ec)] ->
+            Just (TId id, read loc, Right $ xformStatus status ec hash)
 
 peekStatus :: Connection -> String -> IO TargetStatus
 peekStatus db targetName = do
@@ -101,6 +117,8 @@ setStatus :: Connection -> TargetId -> TargetStatus -> IO ()
 setStatus db (TId id) (Ok hash) = do
     executeNamed db "UPDATE target SET hash = :hash WHERE id = :id"
         [ ":id" := id, ":hash" := unHash <$> hash ]
+    executeNamed db "INSERT OR IGNORE INTO targetRun (id, status) VALUES (:id, 'ok');"
+        [ ":id" := id ]
     executeNamed db "UPDATE targetRun SET status = 'ok' WHERE id = :id;"
         [ ":id" := id ]
 setStatus db (TId id) (Fail (ExitFailure ec)) = do
@@ -117,9 +135,9 @@ saveDep db deptype parent child = do
                     \VALUES (:deptype, :pid, :cid);"
         [ ":deptype" := show deptype, ":pid" := pid, ":cid" := cid ]
 
-saveScriptDep :: Connection -> DepType -> String -> ZedoPath -> IO ()
-saveScriptDep db deptype parent (ZedoPath child) = do
-    [(Only (pid :: Int))] <- queryNamed db "SELECT id FROM target WHERE targetName = :name AND location = 'Target';"
+saveScriptDep :: Connection -> DepType -> Maybe Hash -> String -> ZedoPath -> IO ()
+saveScriptDep db deptype hash parent (ZedoPath child) = do
+    [(Only (pid :: Int))] <- queryNamed db "SELECT id FROM target WHERE targetName = :name AND location != 'Script';"
         [ ":name" := parent ]
     r <- queryNamed db "SELECT id FROM target WHERE targetName = :name AND location = 'Script';"
         [ ":name" := child ]
@@ -131,9 +149,20 @@ saveScriptDep db deptype parent (ZedoPath child) = do
             [Only id] <- queryNamed db "SELECT id FROM target WHERE targetName = :name;"
                 [ ":name" := child ]
             pure $ TId id
+    executeNamed db "UPDATE target SET hash = :hash WHERE id = :cid;"
+        [ ":cid" := cid, ":hash" := unHash <$> hash ]
     executeNamed db "INSERT OR IGNORE INTO dependency (deptype, parent_id, child_id)\n\
                     \VALUES (:deptype, :pid, :cid);"
         [ ":deptype" := show deptype, ":pid" := pid, ":cid" := cid ]
+
+peekDependencies :: Connection -> String -> IO [(DepType, String)]
+peekDependencies db targetName = do
+    queryNamed db "SELECT depType, child.targetName\n\
+                  \FROM dependency\n\
+                  \    JOIN target AS parent ON (parent_id = parent.id)\n\
+                  \    JOIN target AS child ON (child_id = child.id)\n\
+                  \WHERE parent.targetName = :name;"
+        [ ":name" := targetName ]
 
 getPhony :: Connection -> String -> IO Bool
 getPhony db targetName = do
@@ -147,7 +176,7 @@ markPhony db targetName = do
     id <- queryNamed db "SELECT target.id FROM targetRun JOIN target ON (target.id = targetRun.id) WHERE targetName = :name;"
         [ ":name" := targetName ]
     case id of
-        [] -> executeNamed db "INSERT INTO targetRun (targetName, phony) VALUES (:name, 1)"
+        [] -> executeNamed db "INSERT INTO targetRun (targetName, phony) VALUES (:name, 1);"
                     [ ":name" := targetName ]
         [Only (id :: Int)] -> executeNamed db "UPDATE targetRun SET phony = 1 WHERE id = :id;"
                     [ ":id" := id ]
@@ -202,3 +231,8 @@ xformStatus "lock" _ _ = Locked
 xformStatus "ok" _ hash = Ok (Hash <$> hash)
 xformStatus "fail" (Just ec) _ = Fail (ExitFailure ec)
 xformStatus "fail" Nothing _ = error "db corruption"
+
+instance FromField DepType where
+    fromField field = case fieldData field of
+        SQLText text -> pure $ read $ T.unpack text -- FIXME what if db is corrupted?
+        -- TODO anything else is a parse failure

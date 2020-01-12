@@ -38,6 +38,7 @@ dependencies:
 - optparse-applicative ==0.14.*
 - sqlite-simple ==0.4.*
 - temporary ==1.*
+- text
 - typed-process ==0.2.*
 - unix # for getProcessID, but I wish it were portable
 

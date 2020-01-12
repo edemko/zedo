@@ -16,10 +16,76 @@ import System.Process.Typed
 import qualified Data.ByteString.Lazy as LBS
 import qualified Crypto.Hash as Hash
 
+import System.IO -- DEBUG
+putErrLn = hPutStrLn stderr -- DEBUG
+
+
+changed :: TopDirs -> FilePath -> IO Bool
+changed topDirs targetName = withDb topDirs (\db -> targetInfo db targetName) >>= \case
+    Nothing -> do
+        putErrLn $ show targetName ++ " changed: unknown target"
+        pure True
+    Just (_, _, Right status) -> case status of
+        Locked -> do
+            putErrLn $ show targetName ++ " changed: Locked status"
+            pure True
+        Fail _ -> do
+            putErrLn $ show targetName ++ " changed: Fail status"
+            pure True
+        Ok _ -> do
+            putErrLn $ show targetName ++ " not changed: Ok status"
+            pure False
+        -- Acquired -- should never happen
+        -- Unknown -- should never happen
+    Just (id, _, Left Nothing) -> do
+        putErrLn $ show targetName ++ " changed: no previous hash"
+        pure True
+    Just (id, location, Left (Just lastHash)) ->
+        let file = case location of
+                    Source -> srcDir topDirs </> targetName
+                    Output -> outDir topDirs </> targetName
+                    Script -> doDir topDirs </> targetName
+        in doesFileExist file >>= \case
+            False -> do
+                putErrLn $ show targetName ++ " changed: output file " ++ show file ++ " does not exist"
+                pure True
+            True -> (lastHash /=) <$> hashFile file >>= \case
+                True -> do
+                    putErrLn $ show targetName ++ " changed: hash differs"
+                    pure True
+                False -> do
+                    deps <- withDb topDirs $ \db -> peekDependencies db targetName
+                    childrenChanged <- forM deps $ \(depType, childName) -> case depType of
+                        Change -> changed topDirs childName
+                        Create -> created topDirs childName
+                    let anyChildChange = or childrenChanged
+                    if anyChildChange
+                        then putErrLn $ show targetName ++ " changed: children changed"
+                        else putErrLn $ show targetName ++ " not changed: hash matches and children unchanged"
+                    unless anyChildChange $ do
+                        putErrLn $ "saving Ok state for " ++ show targetName
+                        withDb topDirs $ \db ->
+                            setStatus db id (Ok (Just lastHash))
+                    pure $ anyChildChange
+
+created :: TopDirs -> FilePath -> IO Bool
+created topDirs targetName = do
+    r <- withDb topDirs (\db -> targetInfo db targetName) >>= \case
+        Nothing -> pure True
+        Just (_, _, Right status) -> pure True
+        Just (_, Source, Left _) -> doesFileExist $ srcDir topDirs </> targetName
+        Just (_, Output, Left _) -> doesFileExist $ outDir topDirs </> targetName
+        Just (_, Script, Left _) -> doesFileExist $ doDir topDirs </> targetName
+    if r
+    then putErrLn $ show targetName ++ " created"
+    else putErrLn $ show targetName ++ " not created"
+    pure r
+
 
 build :: TopDirs -> TargetFiles -> IO ExitCode
 build topDirs TargetFiles{..} = do
-    (id, status) <- withDb topDirs $ \db -> startTargetRun db target
+    let location = maybe Source (const Output) doFile
+    (id, status) <- withDb topDirs $ \db -> startTargetRun db (location, target)
     status <- case status of
         status@(Ok hash) -> pure status
         status@(Fail ec) -> pure status
@@ -50,8 +116,10 @@ build topDirs TargetFiles{..} = do
             Just parent -> saveDep db Change parent target
         case doFile of
             Nothing -> pure ()
-            Just (doFile, _, _) -> saveScriptDep db Change target doFile
-        forM_ otherDoFiles $ \(doFile, _, _) -> saveScriptDep db Create target doFile
+            Just (doFile, _, _) -> do
+                scriptHash <- hashFile $ doDir topDirs </> ((\(ZedoPath x) -> x) doFile)
+                saveScriptDep db Change (Just scriptHash) target doFile
+        forM_ otherDoFiles $ \(doFile, _, _) -> saveScriptDep db Create Nothing target doFile
         setStatus db id status
     pure $ statusToExitCode status
 

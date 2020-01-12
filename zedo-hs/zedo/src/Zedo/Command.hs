@@ -58,17 +58,11 @@ cmdAlways topDirs targetOpts = do
 
 cmdIfChange :: TopDirs -> TargetOptions -> IO Bool
 cmdIfChange topDirs targetOpts = do
-    targetFiles <- findTargetFiles topDirs targetOpts >>= \case
-        Nothing -> exitFailure
-        Just it -> pure it
-    -- TODO test if rebuilding needed
-        -- we'll use a queue
-        -- for each file in queue, peek the status and compare hash/lack of hash in filesystem
-    needsRebuild <- undefined
-    exitCode <- if needsRebuild
-        then build topDirs targetFiles
-        else pure ExitSuccess
-    pure $ exitCode == ExitSuccess
+    -- FIXME this should obtain a file lock...?
+    needsRebuild <- changed topDirs (targetSpecifier targetOpts)
+    if needsRebuild
+    then cmdAlways topDirs targetOpts
+    else pure True
 
 cmdPhony :: TopDirs -> IO ()
 cmdPhony topDirs@TopDirs{parent} =
