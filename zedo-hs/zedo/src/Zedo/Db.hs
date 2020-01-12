@@ -54,6 +54,7 @@ initDb db = do
                 \( deptype   TEXT NOT NULL\n\
                 \, parent_id INTEGER NOT NULL REFERENCES target(id)\n\
                 \, child_id  INTEGER NOT NULL REFERENCES target(id)\n\
+                \, UNIQUE (deptype, parent_id, child_id)\n\
                 \, CONSTRAINT enum_deptype CHECK (deptype IN ('Change', 'Create'))\n\
                 \);"
                 -- TODO extra
@@ -112,7 +113,7 @@ saveDep db deptype parent child = do
         [ ":name" := parent ]
     [(Only (cid :: Int))] <- queryNamed db "SELECT id FROM target WHERE targetName = :name;"
         [ ":name" := child ]
-    executeNamed db "INSERT INTO dependency (deptype, parent_id, child_id)\n\
+    executeNamed db "INSERT OR IGNORE INTO dependency (deptype, parent_id, child_id)\n\
                     \VALUES (:deptype, :pid, :cid);"
         [ ":deptype" := show deptype, ":pid" := pid, ":cid" := cid ]
 
@@ -130,7 +131,7 @@ saveScriptDep db deptype parent (ZedoPath child) = do
             [Only id] <- queryNamed db "SELECT id FROM target WHERE targetName = :name;"
                 [ ":name" := child ]
             pure $ TId id
-    executeNamed db "INSERT INTO dependency (deptype, parent_id, child_id)\n\
+    executeNamed db "INSERT OR IGNORE INTO dependency (deptype, parent_id, child_id)\n\
                     \VALUES (:deptype, :pid, :cid);"
         [ ":deptype" := show deptype, ":pid" := pid, ":cid" := cid ]
 

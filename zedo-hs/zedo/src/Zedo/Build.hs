@@ -20,41 +20,40 @@ import qualified Crypto.Hash as Hash
 build :: TopDirs -> TargetFiles -> IO ExitCode
 build topDirs TargetFiles{..} = do
     (id, status) <- withDb topDirs $ \db -> startTargetRun db target
-    case status of
-        Ok hash -> pure ExitSuccess
-        Fail ec -> pure ec
+    status <- case status of
+        status@(Ok hash) -> pure status
+        status@(Fail ec) -> pure status
         Locked -> undefined -- TODO sleep a moment, then recurse
-        Acquired -> do
-            status <- case doFile of
-                Nothing -> doesFileExist srcFile >>= \case
-                    True -> do
-                        hash <- hashFile srcFile
-                        pure $ Ok (Just hash)
-                    False -> pure $ Fail (ExitFailure 1)
-                Just doFile -> do
-                    createDirectoryIfMissing True (takeDirectory outFile)
-                    withStaging outFile $ \tmpFile -> do
-                        ec <- runDoScript topDirs (target, doFile, tmpFile)
-                        isPhony <- withDb topDirs $ \db -> getPhony db target
-                        case (ec, isPhony) of
-                            (ExitSuccess, False) -> do
-                                renameFile tmpFile outFile
-                                hash <- hashFile outFile
-                                pure $ Ok (Just hash)
-                            (ExitSuccess, True) -> do
-                                pure $ Ok Nothing
-                            (ExitFailure ec, _) -> do
-                                pure $ Fail (ExitFailure ec)
-            withDb topDirs $ \db -> do
-                case parent topDirs of
-                    Nothing -> pure ()
-                    Just parent -> saveDep db Change parent target
-                case doFile of
-                    Nothing -> pure ()
-                    Just (doFile, _, _) -> saveScriptDep db Change target doFile
-                forM_ otherDoFiles $ \(doFile, _, _) -> saveScriptDep db Create target doFile
-                setStatus db id status
-            pure $ statusToExitCode status
+        Acquired -> case doFile of
+            Nothing -> doesFileExist srcFile >>= \case
+                True -> do
+                    hash <- hashFile srcFile
+                    pure $ Ok (Just hash)
+                False -> pure $ Fail (ExitFailure 1)
+            Just doFile -> do
+                createDirectoryIfMissing True (takeDirectory outFile)
+                withStaging outFile $ \tmpFile -> do
+                    ec <- runDoScript topDirs (target, doFile, tmpFile)
+                    isPhony <- withDb topDirs $ \db -> getPhony db target
+                    case (ec, isPhony) of
+                        (ExitSuccess, False) -> do
+                            renameFile tmpFile outFile
+                            hash <- hashFile outFile
+                            pure $ Ok (Just hash)
+                        (ExitSuccess, True) -> do
+                            pure $ Ok Nothing
+                        (ExitFailure ec, _) -> do
+                            pure $ Fail (ExitFailure ec)
+    withDb topDirs $ \db -> do
+        case parent topDirs of
+            Nothing -> pure ()
+            Just parent -> saveDep db Change parent target
+        case doFile of
+            Nothing -> pure ()
+            Just (doFile, _, _) -> saveScriptDep db Change target doFile
+        forM_ otherDoFiles $ \(doFile, _, _) -> saveScriptDep db Create target doFile
+        setStatus db id status
+    pure $ statusToExitCode status
 
 
 runDoScript :: TopDirs -> (FilePath, (ZedoPath, FilePath, Maybe Extension), FilePath) -> IO ExitCode

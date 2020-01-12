@@ -18,12 +18,12 @@ dispatch topDirs cmd = do
     case cmd of
         Init -> cmdInit topDirs
         Find target -> cmdFind topDirs target
-        Always{..} -> buildMany find targets
-        IfChange{..} -> buildMany find targets -- TODO
+        Always{..} -> buildMany cmdAlways find targets
+        IfChange{..} -> buildMany cmdIfChange find targets
         Phony -> cmdPhony topDirs
     where
-    buildMany find targets = do
-        successes <- cmdAlways topDirs `mapM` targets
+    buildMany cmd find targets = do
+        successes <- cmd topDirs `mapM` targets
         if and successes
         then when find (cmdFind topDirs `mapM_` targets)
         else die "a dependency failed to build"
@@ -47,7 +47,7 @@ cmdFind topDirs targetOpts = do
         Just TargetFiles{..} -> putStrLn targetFile
 
 
--- FIXME should return success or failure instead of dieing
+-- FIXME should return success or failure instead of dying
 cmdAlways :: TopDirs -> TargetOptions -> IO Bool
 cmdAlways topDirs targetOpts = do
     targetFiles <- findTargetFiles topDirs targetOpts >>= \case
@@ -56,6 +56,19 @@ cmdAlways topDirs targetOpts = do
     exitCode <- build topDirs targetFiles
     pure $ exitCode == ExitSuccess
 
+cmdIfChange :: TopDirs -> TargetOptions -> IO Bool
+cmdIfChange topDirs targetOpts = do
+    targetFiles <- findTargetFiles topDirs targetOpts >>= \case
+        Nothing -> exitFailure
+        Just it -> pure it
+    -- TODO test if rebuilding needed
+        -- we'll use a queue
+        -- for each file in queue, peek the status and compare hash/lack of hash in filesystem
+    needsRebuild <- undefined
+    exitCode <- if needsRebuild
+        then build topDirs targetFiles
+        else pure ExitSuccess
+    pure $ exitCode == ExitSuccess
 
 cmdPhony :: TopDirs -> IO ()
 cmdPhony topDirs@TopDirs{parent} =

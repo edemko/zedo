@@ -12,22 +12,22 @@ Perhaps `<dependency>` itself needs to be built before `<artifact>`.
 You've already written a build script, `<dependency.do>`.
 So, a step in `<artifact.do>` will be to invoke `<dependency.do>`.
 
-Maybe a lot of scripts are the same except for a filename, so you add some extra arguments to the scripts so that you can use a single script for many things.
+Maybe a lot of scripts are the same except for a filename, so you add some extra arguments to the scripts so that you can use a single script for many files.
 Usually, when scripts can be shared, the artifacts all end in the same extension.
 So, let's make a convention and put reusable scripts in `default.<extension>.do`.
 Just to make things easier on ourselves, let's make sure that every script is always called with the same argument structure; that way it's relatively easy to turn a specific `*.do` script into a generic `default.*.do` script.
-Unfortunately, we've now broken the obvious correspondence between 
-We'd have to search for the each do-script before we can invoke it
+Unfortunately, we've now broken the obvious correspondence between artifact and script.
+We'd have to search for the each do-script before we can invoke it.
 The question is: where do we put the default do-script, and then how do we search for it?
 
-Depending on how you write you `*.do` scripts, you might notice that when a do-script fails, it leaves it's artifact in an inconsistent state.
+Depending on how you write your `*.do` scripts, you might notice that when a do-script fails, it leaves it's artifact in an inconsistent state.
 It'd be better if, when a do-script fails, the artifact is left alone; only when the do-script executes successfully is the artifact updated.
 Making sure every do-script does this right is boring and error-prone.
 
 If none of the dependencies of an artifact change, there's no point in running it's do-script again: it should produce the same results.
 There's just the question of figuring out which dependencies have or have not changed.
 Unfortunately, that's easy to mess up: not only do you have to keep track of direct dependencies, but also transitive dependencies.
-And you know what, isn't the do-script itself a dependency, as are all the places where we searched for a do-script.
+And you know what, isn't the do-script itself a dependency, as are all the places where we searched for a do-script?
 On top of that, you still have to write the change-detection test.
 
 Look, I just want to type the name of an artifact and get it automatically built according to my scripts.
@@ -41,9 +41,9 @@ Let's write a little utility that can do all the boring stuff:
 
 Instead of invoking a do-script directly, let's instead always invoke it through our little utility.
 
-That's why dbj came up with [redo](https://cr.yp.to/redo.html).
+That's why djb came up with [redo](https://cr.yp.to/redo.html).
 Admittedly, he only came up with the idea, not the implementation, so there are some known weaknesses, and some he admits himself.
-`zedo` implements the strong points of redo, while addressing the weakness of `redo` while gaining the strengths of redo.
+`zedo` implements the strong points of redo, while addressing the weakness of `redo`.
 It is named differently only so that there is no confusion between the two interfaces.
 
 ## Architectural Notes

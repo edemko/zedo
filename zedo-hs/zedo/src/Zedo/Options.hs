@@ -54,6 +54,7 @@ topOptions = do
                     (progDesc "Rebuild a target, regardless of the state of its dependencies."))
             <> command "ifchange" (info ifchangeOptions
                     (progDesc "Rebuild a target, but only if its dependencies are out-of-date."))
+            -- TODO ifcreate
             )
         init = command "init" (info initOptions
                     (progDesc "Create a zedo project."))
